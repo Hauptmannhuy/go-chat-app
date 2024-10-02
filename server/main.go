@@ -9,11 +9,27 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type Room struct {
+	Members []*Client
+}
+
+type Client struct {
+	Socket    *websocket.Conn
+	Connected bool
+}
+
+func (c *Client) CloseConnection() {
+	c.Connected = false
+}
+
+var hub Room
+
 type ApiResponse struct {
 	Message string `json:"message"`
 }
 
 var upgrader = websocket.Upgrader{
+
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
@@ -39,28 +55,77 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func chatHandler(w http.ResponseWriter, r *http.Request) {
+	roomID := r.URL.Query().Get("roomId")
+	fmt.Println(roomID, "room id")
+	if roomID == "" {
+		http.Error(w, "Missing roomID", http.StatusBadRequest)
+		return
+	}
+
 	setCorsHeaders(w)
 	conn, err := upgrader.Upgrade(w, r, nil)
+	var newClient = Client{
+		Socket:    conn,
+		Connected: true,
+	}
+	hub.Members = append(hub.Members, &newClient)
+
+	newClient.Socket.SetCloseHandler(func(code int, text string) error {
+		newClient.CloseConnection()
+		return nil
+	})
 
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	conn.WriteMessage(websocket.TextMessage, []byte("Bidirectional connection established"))
-	defer conn.Close()
+
+	fmt.Println(hub.Members)
+
+	go clientMessages(newClient)
+}
+
+func clientMessages(cl Client) {
+
+	defer func() {
+		cl.Socket.Close()
+		removeClient(cl)
+	}()
+
+	defer fmt.Println("Connection closed with", cl)
 	for {
-		messageType, p, err := conn.ReadMessage()
+		peerSoc := cl.Socket
+		fmt.Println(cl.Connected)
+		messageType, p, err := peerSoc.ReadMessage()
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			log.Println(err)
+		for _, hubCl := range hub.Members {
+			hubSoc := hubCl.Socket
+			if err := hubSoc.WriteMessage(messageType, p); err != nil {
+				log.Println(err)
+				return
+			}
+
+		}
+		fmt.Println("Message from", cl)
+
+	}
+}
+
+func removeClient(cl Client) {
+	fmt.Println("removing..")
+	for i := range hub.Members {
+		fmt.Println(i)
+		if cl.Socket == hub.Members[i].Socket {
+			fmt.Println("Found")
+			hub.Members = append(hub.Members[:i], hub.Members[i+1:]...)
+			fmt.Println(hub.Members)
 			return
 		}
-		fmt.Println("Message data", messageType, p)
 	}
-
 }
 
 func getHome(w http.ResponseWriter, r *http.Request) {
