@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-
+import { Link } from "react-router-dom";
 
 
 function Home(){
@@ -10,7 +10,6 @@ function Home(){
 
     useEffect(() => {
       const fetchData = async () => {
-      // setLoading(true)
       const response = await fetch('http://localhost:8090/')
       const message = await response.json()
       setData(message)
@@ -27,7 +26,6 @@ function Home(){
 
   return (<>
     <h2>{data.Message}</h2>
-  
   </>
   )
 }
