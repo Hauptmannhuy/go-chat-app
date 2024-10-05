@@ -9,20 +9,51 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type Room struct {
-	Members []*Client
+type Client struct {
+	Socket        *websocket.Conn
+	Connected     bool
+	Subscriptions []string
 }
 
-type Client struct {
-	Socket    *websocket.Conn
-	Connected bool
+type OutEnvelope struct {
+	Type string
+	Data interface{}
+}
+
+type UserMessage struct {
+	Body   string
+	ChatID string
+	// UserID string
+}
+
+type Envelope struct {
+	Type string
+}
+
+type Chat struct {
+	Members []*Client
+	ID      string
+}
+
+type JoinNotification struct {
+	ChatID string `json:"chatID"`
+}
+
+type Hub []*Client
+
+type Chats map[string]*Chat
+
+var chats = make(Chats)
+
+func (c *Client) AddSub(cID string) {
+	c.Subscriptions = append(c.Subscriptions, cID)
 }
 
 func (c *Client) CloseConnection() {
 	c.Connected = false
 }
 
-var hub Room
+var connSockets Hub
 
 type ApiResponse struct {
 	Message string `json:"message"`
@@ -55,12 +86,6 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func chatHandler(w http.ResponseWriter, r *http.Request) {
-	roomID := r.URL.Query().Get("roomId")
-	fmt.Println(roomID, "room id")
-	if roomID == "" {
-		http.Error(w, "Missing roomID", http.StatusBadRequest)
-		return
-	}
 
 	setCorsHeaders(w)
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -68,7 +93,7 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 		Socket:    conn,
 		Connected: true,
 	}
-	hub.Members = append(hub.Members, &newClient)
+	connSockets = append(connSockets, &newClient)
 
 	newClient.Socket.SetCloseHandler(func(code int, text string) error {
 		newClient.CloseConnection()
@@ -79,9 +104,9 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	conn.WriteMessage(websocket.TextMessage, []byte("Bidirectional connection established"))
+	// conn.WriteMessage(websocket.TextMessage, []byte("Bidirectional connection established"))
 
-	fmt.Println(hub.Members)
+	fmt.Println(connSockets)
 
 	go clientMessages(newClient)
 }
@@ -92,40 +117,138 @@ func clientMessages(cl Client) {
 		cl.Socket.Close()
 		removeClient(cl)
 	}()
-
 	defer fmt.Println("Connection closed with", cl)
+
 	for {
 		peerSoc := cl.Socket
+
 		fmt.Println(cl.Connected)
+
 		messageType, p, err := peerSoc.ReadMessage()
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		for _, hubCl := range hub.Members {
-			hubSoc := hubCl.Socket
-			if err := hubSoc.WriteMessage(messageType, p); err != nil {
-				log.Println(err)
-				return
-			}
 
+		if err != nil {
+			log.Println(err)
+			return
 		}
-		fmt.Println("Message from", cl)
+		handleResponseEnvelope(p, connSockets, messageType, chats, cl)
 
 	}
 }
 
+func handleResponseEnvelope(p []byte, connSockets Hub, msgT int, chats Chats, cl Client) {
+	outEnv := processEnvelope(p)
+	jsonEnv, err := json.Marshal(outEnv)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	switch outEnv.Type {
+	case "NEW_MESSAGE":
+		msg, ok := outEnv.Data.(UserMessage)
+		if ok {
+			fmt.Println("Message body:", msg.Body)
+			fmt.Println("Chat ID:", msg.ChatID)
+		}
+		chatID := msg.ChatID
+		chat := chats[chatID]
+		for _, cl := range chat.Members {
+			sendResposeEnvelope(jsonEnv, *cl, msgT)
+		}
+	case "NEW_CHAT":
+		for _, cl := range connSockets {
+			sendResposeEnvelope(jsonEnv, *cl, msgT)
+		}
+		msg := outEnv.Data.(Chat)
+		chatCreation(chats, msg.ID)
+	case "JOIN_CHAT":
+		msg := outEnv.Data.(JoinNotification)
+		chat := chats[msg.ChatID]
+		chat.Members = append(chat.Members, &cl)
+		fmt.Println(chat, "Chat members")
+	}
+
+}
+
+func sendResposeEnvelope(p []byte, cl Client, msgT int) {
+	socket := cl.Socket
+	if err := socket.WriteMessage(msgT, p); err != nil {
+		log.Println(err)
+		return
+	}
+}
+
+func processEnvelope(p []byte) OutEnvelope {
+	var outEnv OutEnvelope
+	var env Envelope
+
+	fmt.Println("Raw JSON", string(p))
+	if err := json.Unmarshal(p, &env); err != nil {
+		log.Fatal(err)
+	}
+	outEnv.Type = env.Type
+	switch env.Type {
+	case "NEW_MESSAGE":
+		var s struct {
+			Envelope
+			UserMessage
+		}
+		if err := json.Unmarshal(p, &s); err != nil {
+			log.Fatal(err)
+		}
+		outEnv.Data = s.UserMessage
+		return outEnv
+	case "NEW_CHAT":
+		var s struct {
+			Envelope
+			Chat
+		}
+		if err := json.Unmarshal(p, &s); err != nil {
+			log.Fatal(err)
+		}
+		outEnv.Data = s.Chat
+		return outEnv
+	case "JOIN_CHAT":
+		var s struct {
+			Envelope
+			JoinNotification
+		}
+		if err := json.Unmarshal(p, &s); err != nil {
+			log.Fatal(err)
+		}
+		outEnv.Data = s.JoinNotification
+		return outEnv
+	default:
+		return outEnv
+	}
+}
+
 func removeClient(cl Client) {
-	fmt.Println("removing..")
-	for i := range hub.Members {
+	fmt.Println("removing client..")
+	for i := range connSockets {
 		fmt.Println(i)
-		if cl.Socket == hub.Members[i].Socket {
-			fmt.Println("Found")
-			hub.Members = append(hub.Members[:i], hub.Members[i+1:]...)
-			fmt.Println(hub.Members)
+		if cl.Socket == connSockets[i].Socket {
+			fmt.Println("Removed")
+			connSockets = append(connSockets[:i], connSockets[i+1:]...)
+			fmt.Println(connSockets)
 			return
 		}
 	}
+}
+
+func chatCreation(c Chats, cID string) {
+	chat := &Chat{
+		ID: cID,
+	}
+	fmt.Println(cID, "CHAT ID")
+	fmt.Println(c, "Map")
+	c[cID] = chat
+	fmt.Println("Not reached")
 }
 
 func getHome(w http.ResponseWriter, r *http.Request) {

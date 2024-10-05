@@ -16,22 +16,39 @@ function ChatBrowser(){
   const createChat = (name) => {
     setInvokeStatus(false)
     setCreationInput(false)
-    const newChat = { name: `${name}` };
+    
+    sendChatData(name)
+  };
+
+  const joinChat = (name) => {
+   const previuosChats = [...chats]
+   const newChats = previuosChats.filter(el => (el.name != name))
+   const changedChat = {name: name, participation: true}
+   newChats.push(changedChat)
+
+   const json_message = {
+    "type": "JOIN_CHAT",
+    "chatID": `${name}`
+   }
+
+   websocket.send(JSON.stringify(json_message))
+   setChats(newChats)
+  }
+
+  const appendChats = (name) => {
+    const newChat = { name: `${name}`, participation: false };
     setChats([...chats, newChat]);
     const newMessages = {...messages}
     newMessages[name] = []
     setMessages(newMessages)
-    sendChatData(name)
-  };
-  console.log(messages)
+  }
+  // console.log(messages)
 
   const sendChatData = (name) => {
    const json_message = {
       "type": "NEW_CHAT",
-      "data": {
-        "name": `${name}`
+      "id": `${name}`,
       }
-    }
     websocket.send(JSON.stringify(json_message))
   }
 
@@ -41,8 +58,22 @@ function ChatBrowser(){
     setMessages(newArr)
   }
   
-
-
+  if (websocket) {
+    websocket.onmessage = (ev) => {
+      console.log(ev.data)
+      const response = JSON.parse(ev.data)
+      console.log(response)
+      if (response.Type == 'NEW_CHAT'){
+        appendChats(response.Data.ID)
+        console.log(response.ID)
+      }
+      else {
+        console.log(ev.data)
+      }
+      
+    }
+  }
+  console.log(chats,messages)
 
   
 
@@ -50,7 +81,6 @@ function ChatBrowser(){
     const ws = new WebSocket(`ws://localhost:8090/chat`);
     ws.onopen = function () {
       console.log("WebSocket connection established.");
-      ws.send("Hello from client!");
       console.log(ws.readyState, 'readyState')
     };
     setWebsocket(ws)
@@ -70,12 +100,28 @@ function ChatBrowser(){
       <h2>Chat list</h2>
     <div className="chat-list">
     {chats.map((el) => (
-      <button  
-      key={el.name} 
-      onClick= {() => {setSelectedChat(el.name) }}
-      name={el.name}
-      >{el.name} </button>
-    ))}
+       el.participation ? ( 
+        <button  
+
+          key={el.name} 
+          onClick= {() => {setSelectedChat(el.name) }}
+          name={el.name}
+          >{el.name} 
+
+        </button>)
+         : 
+
+        (
+        <button
+        key={el.name}
+        onClick = {() => {joinChat(el.name)}}>
+          Join chat {el.name}
+        </button>
+        )
+
+       
+      
+      ))}
     </div>
     <button onClick={() => setInvokeStatus(true)}>Create chat</button>
     {creationChatInvoked ? (
