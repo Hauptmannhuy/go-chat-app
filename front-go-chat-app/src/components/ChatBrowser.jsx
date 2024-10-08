@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import Chat from "./Chat";
+import ChatList from "./ChatList";
 function ChatBrowser(){
   
   const [chats, setChats] = useState([]);
@@ -12,26 +12,46 @@ function ChatBrowser(){
   const [creationChatInvoked, setInvokeStatus] = useState(false)
   const [creationInput, setCreationInput] = useState("")
 
+  const sendEnvelope = (type, data) => {
+    console.log(type)
+      const actions = {
+        "NEW_MESSAGE": {
+          type: "NEW_MESSAGE",
+          chatid: `${data[0]}`,
+          body: `${data[1]}`,
+        },
+        "NEW_CHAT": {
+          type: "NEW_CHAT",
+          id: `${data[0]}`
+        },
+        "JOIN_CHAT": {
+          type: "JOIN_CHAT",
+          chatID: `${data[0]}`
+        }
+      }
+    
+      const json = actions[type];
+      if (json && websocket) {
+        websocket.send(JSON.stringify(json));
+      } else {
+        console.error(`Unknown action type: ${type}`);
+      }
+    };
 
-  const createChat = (name) => {
+  const createChat = (name,type = "NEW_CHAT") => {
     setInvokeStatus(false)
     setCreationInput(false)
     
-    sendChatData(name)
+    sendEnvelope(type, [name])
   };
 
-  const joinChat = (name) => {
+  const joinChat = (name,type = "JOIN_CHAT") => {
    const previuosChats = [...chats]
    const newChats = previuosChats.filter(el => (el.name != name))
    const changedChat = {name: name, participation: true}
    newChats.push(changedChat)
 
-   const json_message = {
-    "type": "JOIN_CHAT",
-    "chatID": `${name}`
-   }
-
-   websocket.send(JSON.stringify(json_message))
+   sendEnvelope(type, [name])
    setChats(newChats)
   }
 
@@ -42,20 +62,10 @@ function ChatBrowser(){
     newMessages[name] = []
     setMessages(newMessages)
   }
-  // console.log(messages)
 
-  const sendChatData = (name) => {
-   const json_message = {
-      "type": "NEW_CHAT",
-      "id": `${name}`,
-      }
-    websocket.send(JSON.stringify(json_message))
-  }
 
-  const appendNewMessages = (name, msg) => {
-    const newArr = {...messages}
-    newArr[name].push(msg)
-    setMessages(newArr)
+  const sendMessage = (name, msg, type = "NEW_MESSAGE") => {
+    sendEnvelope(type, [name,msg])
   }
   
   if (websocket) {
@@ -65,7 +75,6 @@ function ChatBrowser(){
       console.log(response)
       if (response.Type == 'NEW_CHAT'){
         appendChats(response.Data.ID)
-        console.log(response.ID)
       }
       else {
         console.log(ev.data)
@@ -97,33 +106,15 @@ function ChatBrowser(){
   return (
     <>
     <div className="chat-bar">
-      <h2>Chat list</h2>
-    <div className="chat-list">
-    {chats.map((el) => (
-       el.participation ? ( 
-        <button  
 
-          key={el.name} 
-          onClick= {() => {setSelectedChat(el.name) }}
-          name={el.name}
-          >{el.name} 
+     <ChatList 
+     chats={chats}
+     handleSelect={setSelectedChat}
+     handleJoin={joinChat}
+     />
 
-        </button>)
-         : 
-
-        (
-        <button
-        key={el.name}
-        onClick = {() => {joinChat(el.name)}}>
-          Join chat {el.name}
-        </button>
-        )
-
-       
-      
-      ))}
-    </div>
     <button onClick={() => setInvokeStatus(true)}>Create chat</button>
+    
     {creationChatInvoked ? (
       <div>
         <input type="text" onChange={(e) => setCreationInput(e.target.value)}/>
@@ -139,7 +130,7 @@ function ChatBrowser(){
       <Chat
       ws = {websocket}
       chatName = {chatSelected}
-      msgHandler = {appendNewMessages}
+      msgHandler = {sendMessage}
       messages = {messages[chatSelected]}/>
       ) : (
       <h2>Chat display</h2>
