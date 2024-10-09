@@ -1,12 +1,24 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"go-chat-app/dbmanager/handler"
+	"go-chat-app/dbmanager/service"
+	"go-chat-app/dbmanager/store"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file" // Import the file source driver
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq" // PostgreSQL driver
+
+	// PostgreSQL driver
 	"github.com/gorilla/websocket"
 )
 
@@ -14,7 +26,6 @@ type Client struct {
 	Socket    *websocket.Conn
 	Connected bool
 	Mutex     sync.Mutex
-	// Subscriptions []string
 }
 
 type OutEnvelope struct {
@@ -70,17 +81,9 @@ func (chL *ChatList) CreateChat(chID string) {
 	chL.Chats[chID] = chat
 }
 
-var chatList ChatList
-
-// func (c *Client) AddSub(cID string) {
-// 	c.Subscriptions = append(c.Subscriptions, cID)
-// }
-
 func (c *Client) CloseConnection() {
 	c.Connected = false
 }
-
-var connSockets Hub
 
 func (cnSockets *Hub) removeClient(cl *Client) {
 	cnSockets.Mutex.Lock()
@@ -115,16 +118,55 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+var chatList ChatList
+
+var connSockets Hub
+
+var db *sql.DB
+
 func main() {
+
+	err := godotenv.Load(".env")
+
+	if err != nil {
+		log.Fatalf("Error loading .env file")
+	}
+	dotenv := os.Getenv("DATABASE_CREDS")
+	fmt.Println(dotenv)
+	dataSourceName := fmt.Sprintf("postgres://%s/dbmanager?sslmode=disable", dotenv)
+	db, err = sql.Open("postgres", dataSourceName)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	fmt.Println("Connected to database")
+
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
+	if err != nil {
+		log.Fatalf("Could not start SQL driver: %v", err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations", // Correctly specify the file scheme
+		"postgres", driver)
+	if err != nil {
+		log.Fatalf("Could not start migration: %v", err)
+	}
+
+	err = m.Up()
+	if err != nil && err != migrate.ErrNoChange {
+		log.Fatalf("Migration failed: %v", err)
+	}
+
 	http.HandleFunc("/", homeHandler)
 	http.HandleFunc("/chat", chatHandler)
-	err := http.ListenAndServe(":8090", nil)
+	err = http.ListenAndServe(":8090", nil)
 	if err != nil {
 		fmt.Println(err)
 	}
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
+
 	if r.Method == "OPTIONS" {
 		setOptions(w)
 	} else if r.Method == "GET" {
@@ -159,7 +201,6 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func clientMessages(cl *Client) {
-
 	defer func() {
 		cl.Socket.Close()
 		connSockets.removeClient(cl)
@@ -178,13 +219,29 @@ func clientMessages(cl *Client) {
 			log.Println(err)
 			return
 		}
-		handleResponseEnvelope(p, &connSockets, messageType, &chatList, cl)
+		outEnv := processEnvelope(p)
+		handleDataBase(outEnv)
+		handleResponseEnvelope(outEnv, &connSockets, messageType, &chatList, cl)
 
 	}
 }
 
-func handleResponseEnvelope(p []byte, connSockets *Hub, msgT int, chats *ChatList, cl *Client) {
-	outEnv := processEnvelope(p)
+func handleDataBase(env OutEnvelope) {
+	switch env.Type {
+	case "NEW_MESSAGE":
+		messageStore := &store.SQLMessageStore{DB: db}
+		messageService := service.MessageService{MessageStore: messageStore}
+		messageHandler := handler.MessageHandler{MessageService: messageService}
+		jsoned, _ := json.Marshal(env.Data)
+		messageHandler.CreateMessageHandler(jsoned)
+	default:
+		fmt.Println("No write to dataBase")
+	}
+
+}
+
+func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chats *ChatList, cl *Client) {
+	fmt.Println(outEnv)
 	jsonEnv, err := json.Marshal(outEnv)
 
 	if err != nil {
@@ -208,7 +265,7 @@ func handleResponseEnvelope(p []byte, connSockets *Hub, msgT int, chats *ChatLis
 		for _, cl := range connSockets.Connections {
 			sendResposeEnvelope(jsonEnv, cl, msgT)
 		}
-		msg := outEnv.Data.(*Chat)
+		msg := outEnv.Data.(Chat)
 		chats.CreateChat(msg.ID)
 	case "JOIN_CHAT":
 		msg := outEnv.Data.(JoinNotification)

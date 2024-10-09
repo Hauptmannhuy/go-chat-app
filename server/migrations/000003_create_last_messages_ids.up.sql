@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS last_messages_ids (
+ chatID VARCHAR(255) PRIMARY KEY,
+ last_message_id INT DEFAULT 0,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

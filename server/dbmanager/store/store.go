@@ -1,0 +1,82 @@
+package store
+
+import (
+	"database/sql"
+	"fmt"
+
+	_ "github.com/lib/pq" // PostgreSQL driver
+)
+
+type Message struct {
+	ID     int    `json:"id"`
+	Body   string `json:"body"`
+	ChatID string `json:"chatID"`
+	// CreatedAt string `json:"created_at"`
+}
+
+type MessageStore interface {
+	SaveMessage(body, description string) error
+	GetAllMessages() ([]Message, error)
+}
+
+type SQLMessageStore struct {
+	DB *sql.DB
+}
+
+func (s *SQLMessageStore) retrieveLastMessageID(chatID string) (error, int) {
+	tr, _ := s.DB.Begin()
+
+	_, err := s.DB.Exec(`
+		INSERT INTO last_messages_ids (chatID, last_message_id)
+        VALUES ($1, 0)
+        ON CONFLICT (chatID) DO UPDATE SET last_message_id = last_messages_ids.last_message_id + 1
+		`, chatID)
+	if err != nil {
+		fmt.Println(err)
+		tr.Rollback()
+		return err, 0
+	}
+
+	var message_id int
+	err = s.DB.QueryRow(`
+		SELECT last_message_id FROM last_messages_ids WHERE chatID = $1
+	`, chatID).Scan(&message_id)
+	return err, message_id
+}
+
+func (s *SQLMessageStore) SaveMessage(body, chatID string) error {
+	err, messageID := s.retrieveLastMessageID(chatID)
+
+	if err != nil {
+		return err
+	}
+	_, err = s.DB.Exec("INSERT INTO messages (body, chatID, message_id) VALUES ($1, $2, $3)", body, chatID, messageID)
+	if err != nil {
+		fmt.Println("failed to save message")
+		return err
+	}
+	return err
+}
+
+func (s *SQLMessageStore) GetAllMessages() ([]Message, error) {
+	rows, err := s.DB.Query("SELECT id, body, chatID, created_at FROM messages")
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var messages []Message
+
+	for rows.Next() {
+		var message Message
+
+		if err := rows.Scan(&message.ID, &message.Body, &message.ChatID); err != nil {
+			return nil, err
+		}
+
+		messages = append(messages, message)
+	}
+
+	return messages, nil
+}
