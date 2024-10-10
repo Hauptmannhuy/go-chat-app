@@ -49,6 +49,10 @@ type Chat struct {
 	Mutex   sync.Mutex
 }
 
+type Error struct {
+	Message string
+}
+
 func (c *Chat) AddMember(cl *Client) {
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()
@@ -105,10 +109,6 @@ func (h *Hub) AddConection(c *Client) {
 	h.Connections = append(h.Connections, c)
 }
 
-type ApiResponse struct {
-	Message string `json:"message"`
-}
-
 var upgrader = websocket.Upgrader{
 
 	ReadBufferSize:  1024,
@@ -157,20 +157,10 @@ func main() {
 		log.Fatalf("Migration failed: %v", err)
 	}
 
-	http.HandleFunc("/", homeHandler)
 	http.HandleFunc("/chat", chatHandler)
 	err = http.ListenAndServe(":8090", nil)
 	if err != nil {
 		fmt.Println(err)
-	}
-}
-
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-
-	if r.Method == "OPTIONS" {
-		setOptions(w)
-	} else if r.Method == "GET" {
-		getHome(w, r)
 	}
 }
 
@@ -220,24 +210,37 @@ func clientMessages(cl *Client) {
 			return
 		}
 		outEnv := processEnvelope(p)
-		handleDataBase(outEnv)
+		err = handleDataBase(outEnv)
+		if err != nil {
+			errorMessg := Error{err.Error()}
+			outEnv = OutEnvelope{"ERROR", errorMessg}
+			fmt.Println(outEnv.Data, "outenv data")
+			fmt.Println(err)
+		}
 		handleResponseEnvelope(outEnv, &connSockets, messageType, &chatList, cl)
 
 	}
 }
 
-func handleDataBase(env OutEnvelope) {
+func handleDataBase(env OutEnvelope) error {
+	jsoned, _ := json.Marshal(env.Data)
 	switch env.Type {
 	case "NEW_MESSAGE":
-		messageStore := &store.SQLMessageStore{DB: db}
-		messageService := service.MessageService{MessageStore: messageStore}
-		messageHandler := handler.MessageHandler{MessageService: messageService}
-		jsoned, _ := json.Marshal(env.Data)
-		messageHandler.CreateMessageHandler(jsoned)
+		messageStore := &store.SQLstore{DB: db}
+		messageService := service.Service{MessageStore: messageStore}
+		messageHandler := handler.Handler{MessageService: messageService}
+		err := messageHandler.CreateMessageHandler(jsoned)
+		return err
+	case "NEW_CHAT":
+		chatStore := &store.SQLstore{DB: db}
+		chatService := service.Service{ChatStore: chatStore}
+		chatHandler := handler.Handler{ChatService: chatService}
+		err := chatHandler.CreateChatHandler(jsoned)
+		return err
 	default:
 		fmt.Println("No write to dataBase")
+		return nil
 	}
-
 }
 
 func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chats *ChatList, cl *Client) {
@@ -272,6 +275,8 @@ func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chat
 		chat := chatList.Chats[msg.ChatID]
 		chat.AddMember(cl)
 		fmt.Println(chat, "Chat members")
+	case "ERROR":
+		sendResposeEnvelope(jsonEnv, cl, msgT)
 	}
 
 }
@@ -328,22 +333,9 @@ func processEnvelope(p []byte) OutEnvelope {
 		outEnv.Data = s.JoinNotification
 		return outEnv
 	default:
+		fmt.Println("No type is matched while processing incoming envelope")
 		return outEnv
 	}
-}
-
-func getHome(w http.ResponseWriter, r *http.Request) {
-
-	setCorsHeaders(w)
-
-	if err := r; err != nil {
-		fmt.Println(err)
-	}
-
-	response := ApiResponse{"Hello from backend!"}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
 }
 
 func setOptions(w http.ResponseWriter) {

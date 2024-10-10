@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"go-chat-app/dbmanager/errordb"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
@@ -19,11 +20,32 @@ type MessageStore interface {
 	GetAllMessages() ([]Message, error)
 }
 
-type SQLMessageStore struct {
+type ChatStore interface {
+	SaveChat(ID string) error
+}
+
+type SQLstore struct {
 	DB *sql.DB
 }
 
-func (s *SQLMessageStore) retrieveLastMessageID(chatID string) (error, int) {
+func (s *SQLstore) SaveChat(ID string) error {
+	tr, _ := s.DB.Begin()
+
+	_, err := s.DB.Exec(`
+		INSERT INTO chats (ID)
+			VALUES ($1)
+	`, ID)
+
+	if err != nil {
+		err = errordb.ParseError(err.Error())
+		tr.Rollback()
+		return err
+	}
+	tr.Commit()
+	return err
+}
+
+func (s *SQLstore) retrieveLastMessageID(chatID string) (error, int) {
 	tr, _ := s.DB.Begin()
 
 	_, err := s.DB.Exec(`
@@ -44,7 +66,7 @@ func (s *SQLMessageStore) retrieveLastMessageID(chatID string) (error, int) {
 	return err, message_id
 }
 
-func (s *SQLMessageStore) SaveMessage(body, chatID string) error {
+func (s *SQLstore) SaveMessage(body, chatID string) error {
 	err, messageID := s.retrieveLastMessageID(chatID)
 
 	if err != nil {
@@ -58,7 +80,7 @@ func (s *SQLMessageStore) SaveMessage(body, chatID string) error {
 	return err
 }
 
-func (s *SQLMessageStore) GetAllMessages() ([]Message, error) {
+func (s *SQLstore) GetAllMessages() ([]Message, error) {
 	rows, err := s.DB.Query("SELECT id, body, chatID, created_at FROM messages")
 	if err != nil {
 		return nil, err

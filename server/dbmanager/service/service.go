@@ -2,14 +2,19 @@ package service
 
 import "go-chat-app/dbmanager/store"
 
-type MessageService struct {
+type Service struct {
 	MessageStore store.MessageStore
+	ChatStore    store.ChatStore
 }
 
-func (s *MessageService) CreateMessage(body, chatID string) error {
+func (s *Service) CreateMessage(body, chatID string) error {
 	return s.MessageStore.SaveMessage(body, chatID)
 }
 
-func (s *MessageService) ListMessages() ([]store.Message, error) {
+func (s *Service) ListMessages() ([]store.Message, error) {
 	return s.MessageStore.GetAllMessages()
+}
+
+func (s *Service) CreateChat(chatID string) error {
+	return s.ChatStore.SaveChat(chatID)
 }
