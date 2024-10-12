@@ -7,6 +7,7 @@ import (
 	"go-chat-app/dbmanager/handler"
 	"go-chat-app/dbmanager/service"
 	"go-chat-app/dbmanager/store"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -118,6 +119,45 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type AuthorizationMiddleware struct {
+	handler http.Handler
+}
+
+type AuthHandler struct{}
+
+func (h AuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func NewAuthMiddlewareHandler(handler http.Handler) AuthorizationMiddleware {
+	return AuthorizationMiddleware{
+		handler: handler,
+	}
+}
+
+func (am AuthorizationMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	setCorsHeaders(w)
+	if req.URL.Path == "/sign_up" {
+		return
+	}
+	headers := req.Header
+	_, okHeader := headers["Auth"]
+	queryToken := req.URL.Query().Get("Token")
+
+	if okHeader {
+		// check token. if true - grant access.
+		fmt.Println("check token")
+	} else if queryToken != "" {
+		// check token. if true - grant access.
+		fmt.Println("check token")
+	} else {
+		http.Redirect(w, req, "/sign_up", http.StatusSeeOther)
+
+		// redirect to registration page
+		fmt.Println("redirect")
+	}
+}
+
 var chatList ChatList
 
 var connSockets Hub
@@ -156,16 +196,23 @@ func main() {
 	if err != nil && err != migrate.ErrNoChange {
 		log.Fatalf("Migration failed: %v", err)
 	}
-
+	http.HandleFunc("/sign_up", signUpHandler)
 	http.HandleFunc("/chat", chatHandler)
+	// err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler(AuthHandler{}))
+
 	err = http.ListenAndServe(":8090", nil)
 	if err != nil {
 		fmt.Println(err)
 	}
 }
 
-func chatHandler(w http.ResponseWriter, r *http.Request) {
+func signUpHandler(w http.ResponseWriter, r *http.Request) {
+	setCorsHeaders(w)
+	fmt.Println("sign up")
+	io.WriteString(w, "Hello from a HandleFunc #1!\n")
+}
 
+func chatHandler(w http.ResponseWriter, r *http.Request) {
 	setCorsHeaders(w)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	var newClient = &Client{

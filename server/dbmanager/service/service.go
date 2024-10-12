@@ -15,6 +15,10 @@ func (s *Service) ListMessages() ([]store.Message, error) {
 	return s.MessageStore.GetAllMessages()
 }
 
+func (s *Service) ListChats() {
+
+}
+
 func (s *Service) CreateChat(chatID string) error {
 	return s.ChatStore.SaveChat(chatID)
 }

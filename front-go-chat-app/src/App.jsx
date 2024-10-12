@@ -5,6 +5,7 @@ import ChatBrowser from './components/ChatBrowser';
 function App() {
  
   return (
+    
     <>
     <ChatBrowser/>
     </>

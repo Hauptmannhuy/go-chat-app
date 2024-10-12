@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
+
 import Chat from "./Chat";
 import ChatList from "./ChatList";
-function ChatBrowser(){
+import { useNavigate } from "react-router-dom";
+function ChatBrowser(){ 
+  const navigate = useNavigate()
   
   const [chats, setChats] = useState([]);
   const [messages, setMessages] = useState({})
@@ -68,7 +71,7 @@ function ChatBrowser(){
     sendEnvelope(type, [name,msg])
   }
   
-  if (websocket) {
+  if (websocket != null && websocket != "error") {
     websocket.onmessage = (ev) => {
       console.log(ev.data)
       const response = JSON.parse(ev.data)
@@ -87,19 +90,43 @@ function ChatBrowser(){
   
 
   useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:8090/chat`);
-    ws.onopen = function () {
-      console.log("WebSocket connection established.");
-      console.log(ws.readyState, 'readyState')
-    };
-    setWebsocket(ws)
+
+        const ws = new WebSocket(`ws://localhost:8090/chat`)
+      
+        ws.onopen = function () {
+          console.log("WebSocket connection established.");
+          console.log(ws.readyState, 'readyState')
+          setWebsocket(ws)
+        };
+        ws.onerror = function (error) {
+          console.error("WebSocket error:", error);
+          setWebsocket("error")
+      };
+      ws.onclose = function (event) {
+        if (event.code === 1006) {
+            console.error("Connection closed abnormally, possibly due to redirection.");
+           
+        } else {
+            console.log("WebSocket connection closed:", event);
+        }
+    }
 
     return () => {
       ws.close()
     }
-
   }, [])
-  
+
+
+
+  if (websocket == "error"){
+    fetch("http://localhost:8090/chat").catch(Error).then((Response, Error) =>{ 
+      if (Response.redirected){
+        const url = Response.url.split('/')
+        console.log(url)
+        navigate(`/${url[url.length-1]}`)
+      }
+    })
+  }
   
 
   
