@@ -1,6 +1,9 @@
 package errordb
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type ErrorDB struct {
 	Message string
@@ -11,10 +14,19 @@ func (e *ErrorDB) Error() string {
 }
 
 func ParseError(dberr string) error {
-	chatUniqErr := `pq: duplicate key value violates unique constraint "chats_pkey"`
-	switch dberr {
-	case chatUniqErr:
-		return &ErrorDB{"This chat name is occupied."}
+	var keyErrors = map[string]string{
+		"users_username_key": "This name is occupied",
+		"users_email_key":    "This email is already occupied",
+		"chats_pkey":         "This chat name is already occupied",
 	}
-	return nil
+
+	splitErr := strings.Split(dberr, " ")
+	key := strings.Trim(splitErr[len(splitErr)-1], "\"")
+	el, ok := keyErrors[key]
+
+	if ok {
+		return &ErrorDB{el}
+	} else {
+		return &ErrorDB{"Unknown database error"}
+	}
 }

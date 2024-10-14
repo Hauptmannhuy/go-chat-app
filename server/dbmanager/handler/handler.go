@@ -17,6 +17,7 @@ func (e *argError) Error() string {
 type Handler struct {
 	MessageService service.Service
 	ChatService    service.Service
+	UserService    service.Service
 }
 
 func (h *Handler) CreateMessageHandler(j []byte) error {
@@ -65,4 +66,15 @@ func (h *Handler) CreateChatHandler(j []byte) error {
 		return err
 	}
 	return err
+}
+
+func (h *Handler) CreateUserHandler(username, email, pass string) error {
+
+	if username == "" || email == "" || pass == "" {
+		var err = &argError{"Username, email or password fields"}
+		return err
+	}
+
+	return h.UserService.CreateAccount(username, email, pass)
+
 }

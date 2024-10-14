@@ -15,6 +15,10 @@ type Message struct {
 	// CreatedAt string `json:"created_at"`
 }
 
+type UserStore interface {
+	SaveAccount(name, email, pass string) error
+}
+
 type MessageStore interface {
 	SaveMessage(body, description string) error
 	GetAllMessages() ([]Message, error)
@@ -101,4 +105,26 @@ func (s *SQLstore) GetAllMessages() ([]Message, error) {
 	}
 
 	return messages, nil
+}
+
+func (s *SQLstore) SaveAccount(name, email, pass string) error {
+	tr, err := s.DB.Begin()
+
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	_, err = tr.Exec(`
+		INSERT INTO users (username, email, password) VALUES ($1, $2, $3)
+	`, name, email, pass)
+
+	if err != nil {
+		fmt.Println(err)
+		err = errordb.ParseError(err.Error())
+		tr.Rollback()
+		return err
+	}
+	tr.Commit()
+	return nil
 }
