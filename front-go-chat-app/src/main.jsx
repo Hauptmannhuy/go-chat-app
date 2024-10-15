@@ -6,7 +6,7 @@ import './index.css'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import Chats from './components/ChatBrowser.jsx'
 import ChatBrowser from './components/ChatBrowser.jsx'
-import Home from './components/Home.jsx'
+import SignUpForm from './components/SignUp.jsx'
 
 const router = createBrowserRouter([
   {
@@ -19,12 +19,12 @@ const router = createBrowserRouter([
   },
   {
     path: "/sign_up",
-    element: <Home/>
+    element: <SignUpForm/>
   }
 ])
 
 createRoot(document.getElementById('root')).render(
   // <StrictMode>
     <RouterProvider router={router}/>
-  // </StrictMode>,
+//  </StrictMode>,
 )

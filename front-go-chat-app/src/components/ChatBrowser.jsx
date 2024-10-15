@@ -91,7 +91,7 @@ function ChatBrowser(){
 
   useEffect(() => {
 
-        const ws = new WebSocket(`ws://localhost:8090/chat`)
+        const ws = new WebSocket(`/socket/chat`)
       
         ws.onopen = function () {
           console.log("WebSocket connection established.");
@@ -119,13 +119,13 @@ function ChatBrowser(){
 
 
   if (websocket == "error"){
-    fetch("http://localhost:8090/chat").catch(Error).then((Response, Error) =>{ 
-      if (Response.redirected){
-        const url = Response.url.split('/')
-        console.log(url)
-        navigate(`/${url[url.length-1]}`)
-      }
-    })
+    // fetch("api/chat").catch(Error).then((Response, Error) =>{ 
+    //   if (Response.redirected){
+    //     const url = Response.url.split('/')
+    //     console.log(url)
+    navigate(`/sign_up`)
+    //   }
+    // })
   }
   
 

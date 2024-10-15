@@ -12,12 +12,15 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file" // Import the file source driver
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq" // PostgreSQL driver
+	"golang.org/x/crypto/bcrypt"
 
 	// PostgreSQL driver
 	"github.com/gorilla/websocket"
@@ -136,26 +139,50 @@ func NewAuthMiddlewareHandler(handler http.Handler) AuthorizationMiddleware {
 }
 
 func (am AuthorizationMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	setCorsHeaders(w)
+
 	if req.URL.Path == "/sign_up" {
+		signUpHandler(w, req)
 		return
 	}
-	headers := req.Header
-	_, okHeader := headers["Auth"]
-	queryToken := req.URL.Query().Get("Token")
 
-	if okHeader {
-		// check token. if true - grant access.
-		fmt.Println("check token")
-	} else if queryToken != "" {
-		// check token. if true - grant access.
-		fmt.Println("check token")
-	} else {
-		http.Redirect(w, req, "/sign_up", http.StatusSeeOther)
+	cookie, err := req.Cookie("token")
 
-		// redirect to registration page
+	if err != nil {
+		fmt.Println(err)
 		fmt.Println("redirect")
+		http.Redirect(w, req, "/sign_up", http.StatusSeeOther)
+	} else {
+		ok := verifyToken(cookie)
+		if !ok {
+			http.Redirect(w, req, "/sign_up", http.StatusSeeOther)
+		} else {
+			chatHandler(w, req)
+		}
 	}
+
+}
+
+func verifyToken(c *http.Cookie) bool {
+	tokenS := c.Value
+
+	token, err := jwt.Parse(tokenS, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(os.Getenv("KEY")), nil
+	})
+
+	if err != nil {
+		log.Fatal(err)
+		return false
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		fmt.Println(claims["iss"])
+	} else {
+		fmt.Println(err)
+	}
+	return true
 }
 
 var chatList ChatList
@@ -196,24 +223,101 @@ func main() {
 	if err != nil && err != migrate.ErrNoChange {
 		log.Fatalf("Migration failed: %v", err)
 	}
-	http.HandleFunc("/sign_up", signUpHandler)
-	http.HandleFunc("/chat", chatHandler)
-	// err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler(AuthHandler{}))
 
-	err = http.ListenAndServe(":8090", nil)
+	err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler(AuthHandler{}))
+
+	// err = http.ListenAndServe(":8090", nil)
 	if err != nil {
 		fmt.Println(err)
 	}
 }
 
 func signUpHandler(w http.ResponseWriter, r *http.Request) {
-	setCorsHeaders(w)
+
 	fmt.Println("sign up")
-	io.WriteString(w, "Hello from a HandleFunc #1!\n")
+
+	data, err := io.ReadAll(r.Body)
+
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var message struct {
+		Username string `json:"username"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	json.Unmarshal(data, &message)
+	hash, err := bcrypt.GenerateFromPassword([]byte(message.Password), bcrypt.DefaultCost)
+
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	userStore := store.SQLstore{DB: db}
+	userService := service.Service{UserStore: &userStore}
+	userHandler := handler.Handler{UserService: userService}
+
+	err = userHandler.CreateUserHandler(message.Username, message.Email, string(hash))
+
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	s, err := generateToken()
+
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	setCookies(w, s, message.Username)
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func setCookies(w http.ResponseWriter, s string, name string) {
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "username",
+		Value:    name,
+		Expires:  time.Now().AddDate(0, 0, 14),
+		Path:     "/",
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    s,
+		Expires:  time.Now().AddDate(0, 0, 14),
+		HttpOnly: true,
+		Path:     "/",
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+func generateToken() (string, error) {
+	key := []byte(os.Getenv("KEY"))
+	t := jwt.NewWithClaims(jwt.SigningMethodHS256,
+		jwt.MapClaims{
+			"iss": "go-chat-app",
+		})
+	s, err := t.SignedString(key)
+
+	if err != nil {
+		return "", err
+	}
+	return s, nil
 }
 
 func chatHandler(w http.ResponseWriter, r *http.Request) {
-	setCorsHeaders(w)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	var newClient = &Client{
 		Socket:    conn,
@@ -385,13 +489,13 @@ func processEnvelope(p []byte) OutEnvelope {
 	}
 }
 
-func setOptions(w http.ResponseWriter) {
-	setCorsHeaders(w)
-	w.WriteHeader(http.StatusOK)
-}
+// func setOptions(w http.ResponseWriter) {
+// 	setCorsHeaders(w)
+// 	w.WriteHeader(http.StatusOK)
+// }
 
 func setCorsHeaders(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Origin", "127.0.0.1:5173")
+	// w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	// w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Auth")
 }
