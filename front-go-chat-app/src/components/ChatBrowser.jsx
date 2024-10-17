@@ -3,13 +3,14 @@ import { useEffect, useState } from "react";
 import Chat from "./Chat";
 import ChatList from "./ChatList";
 import { useNavigate } from "react-router-dom";
+import SignOutButton from "./SignOutButton";
+
 function ChatBrowser(){ 
   const navigate = useNavigate()
   
   const [chats, setChats] = useState([]);
   const [messages, setMessages] = useState({})
   const [websocket, setWebsocket] = useState(null)
-  
 
   const [chatSelected, setSelectedChat] = useState(null)
   const [creationChatInvoked, setInvokeStatus] = useState(false)
@@ -85,7 +86,6 @@ function ChatBrowser(){
       
     }
   }
-  console.log(chats,messages)
 
   
 
@@ -119,19 +119,22 @@ function ChatBrowser(){
 
 
   if (websocket == "error"){
-    // fetch("api/chat").catch(Error).then((Response, Error) =>{ 
-    //   if (Response.redirected){
-    //     const url = Response.url.split('/')
-    //     console.log(url)
     navigate(`/sign_up`)
-    //   }
-    // })
+  }
+
+  const userAuthenticated = () => {
+    if (document.cookie != '') return false;
+    return true;
   }
   
+  console.log(document.cookie)
 
   
   return (
     <>
+
+    {userAuthenticated ? (< SignOutButton/>) : null}
+
     <div className="chat-bar">
 
      <ChatList 

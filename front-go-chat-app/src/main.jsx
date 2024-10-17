@@ -6,7 +6,7 @@ import './index.css'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import Chats from './components/ChatBrowser.jsx'
 import ChatBrowser from './components/ChatBrowser.jsx'
-import SignUpForm from './components/SignUp.jsx'
+import AuthenticationForm from './components/AuthenticationForm.jsx'
 
 const router = createBrowserRouter([
   {
@@ -19,7 +19,11 @@ const router = createBrowserRouter([
   },
   {
     path: "/sign_up",
-    element: <SignUpForm/>
+    element: <AuthenticationForm/>,
+  },
+  {
+    path: "/sign_in",
+    element: <AuthenticationForm/>,
   }
 ])
 
