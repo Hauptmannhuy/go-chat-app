@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import AuthInput from "./AuthInput"
+import SignInInput from "./SignInInput"
+import SignUpInput from "./SignUpInput"
 
 
 export default function AuthenticationForm(){
@@ -17,8 +18,7 @@ export default function AuthenticationForm(){
   useEffect(() => {
     async function auth() {
       if (authStatus) {
-        const input = [name,email,pass]
-        const message = {"username": input[0], "email": input[1], "password": input[2]}
+        const message = type == '/sign_up' ? {"username": name, "email": email, "password": pass} : {"username": name, "password": pass}
         try {
           const response = await fetch(`${'api'+type}`, {
             method: "POST",
@@ -47,18 +47,27 @@ export default function AuthenticationForm(){
     if (authSuccess) navigate('/chats');
   }, [authSuccess]);
   
-  
-  console.log(type)
-  
+    
   return (
     <>
 
-    <AuthInput
-    designation={type}
-    nameHandler={setName}
-    emailHandler={setEmail}
-    passHandler={setPass}
-    actionSubmit={setAuthStatus}/>
+    
+
+    {type == '/sign_up' ? (
+    <SignUpInput
+      designation={type}
+      nameHandler={setName}
+      emailHandler={setEmail}
+      passHandler={setPass}
+      actionSubmit={setAuthStatus}/>
+    ) : (
+    <SignInInput
+      designation={type}
+      nameHandler={setName}
+      passHandler={setPass}
+      actionSubmit={setAuthStatus}
+      />
+      )}
   
     <input type="checkbox"/>
     Remember me

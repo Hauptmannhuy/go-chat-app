@@ -24,7 +24,6 @@ func (h *Handler) CreateMessageHandler(j []byte) error {
 	var message struct {
 		Body   string
 		ChatID string
-		// IsGroup bool	`json: "isGroup"`
 	}
 
 	if err := json.Unmarshal(j, &message); err != nil {
@@ -70,11 +69,18 @@ func (h *Handler) CreateChatHandler(j []byte) error {
 
 func (h *Handler) CreateUserHandler(username, email, pass string) error {
 
-	if username == "" || email == "" || pass == "" {
+	if username == "" || pass == "" || email == "" {
 		var err = &argError{"Username, email or password fields"}
 		return err
 	}
-
 	return h.UserService.CreateAccount(username, email, pass)
 
+}
+
+func (h *Handler) LoginUserHandler(username, pass string) error {
+	if username == "" || pass == "" {
+		var err = &argError{"Username or password fields"}
+		return err
+	}
+	return h.UserService.LoginUser(username, pass)
 }

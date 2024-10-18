@@ -20,7 +20,6 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file" // Import the file source driver
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq" // PostgreSQL driver
-	"golang.org/x/crypto/bcrypt"
 
 	// PostgreSQL driver
 	"github.com/gorilla/websocket"
@@ -140,8 +139,16 @@ func NewAuthMiddlewareHandler(handler http.Handler) AuthorizationMiddleware {
 
 func (am AuthorizationMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
+	if req.URL.Path == "/sign_in" {
+		signInHandler(w, req)
+		return
+	}
 	if req.URL.Path == "/sign_up" {
 		signUpHandler(w, req)
+		return
+	}
+	if req.URL.Path == "/sign_out" {
+		SignOutHandler(w, req)
 		return
 	}
 
@@ -226,7 +233,6 @@ func main() {
 
 	err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler(AuthHandler{}))
 
-	// err = http.ListenAndServe(":8090", nil)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -251,19 +257,10 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.Unmarshal(data, &message)
-	hash, err := bcrypt.GenerateFromPassword([]byte(message.Password), bcrypt.DefaultCost)
 
-	if err != nil {
-		fmt.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+	userHandler := initializeDBhandler(db, "user")
 
-	userStore := store.SQLstore{DB: db}
-	userService := service.Service{UserStore: &userStore}
-	userHandler := handler.Handler{UserService: userService}
-
-	err = userHandler.CreateUserHandler(message.Username, message.Email, string(hash))
+	err = userHandler.CreateUserHandler(message.Username, message.Email, message.Password)
 
 	if err != nil {
 		fmt.Println(err)
@@ -278,12 +275,29 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	setCookies(w, s, message.Username)
+	setAuthCookies(w, s, message.Username)
 
 	w.WriteHeader(http.StatusOK)
 }
 
-func setCookies(w http.ResponseWriter, s string, name string) {
+func initializeDBhandler(db *sql.DB, handlerDeclaration string) handler.Handler {
+	dbStore := store.SQLstore{DB: db}
+	service := service.Service{}
+	handler := handler.Handler{}
+	if handlerDeclaration == "user" {
+		service.UserStore = &dbStore
+		handler.UserService = service
+	} else if handlerDeclaration == "chat" {
+		service.ChatStore = &dbStore
+		handler.ChatService = service
+	} else if handlerDeclaration == "message" {
+		service.MessageStore = &dbStore
+		handler.MessageService = service
+	}
+	return handler
+}
+
+func setAuthCookies(w http.ResponseWriter, s string, name string) {
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "username",
@@ -301,6 +315,56 @@ func setCookies(w http.ResponseWriter, s string, name string) {
 		Path:     "/",
 		SameSite: http.SameSiteStrictMode,
 	})
+}
+
+func SignOutHandler(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Expires:  time.Now(),
+		HttpOnly: true,
+		Path:     "/",
+		SameSite: http.SameSiteStrictMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "username",
+		Expires:  time.Now(),
+		Path:     "/",
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func signInHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("sign in")
+	userHandler := initializeDBhandler(db, "user")
+	var message struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	err = json.Unmarshal(data, &message)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	err = userHandler.LoginUserHandler(message.Username, message.Password)
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	} else {
+		token, _ := generateToken()
+		setAuthCookies(w, token, message.Username)
+		w.WriteHeader(http.StatusOK)
+	}
 }
 
 func generateToken() (string, error) {
@@ -377,19 +441,15 @@ func handleDataBase(env OutEnvelope) error {
 	jsoned, _ := json.Marshal(env.Data)
 	switch env.Type {
 	case "NEW_MESSAGE":
-		messageStore := &store.SQLstore{DB: db}
-		messageService := service.Service{MessageStore: messageStore}
-		messageHandler := handler.Handler{MessageService: messageService}
+		messageHandler := initializeDBhandler(db, "message")
 		err := messageHandler.CreateMessageHandler(jsoned)
 		return err
 	case "NEW_CHAT":
-		chatStore := &store.SQLstore{DB: db}
-		chatService := service.Service{ChatStore: chatStore}
-		chatHandler := handler.Handler{ChatService: chatService}
+		chatHandler := initializeDBhandler(db, "chat")
 		err := chatHandler.CreateChatHandler(jsoned)
 		return err
 	default:
-		fmt.Println("No write to dataBase")
+		fmt.Println("No write to database")
 		return nil
 	}
 }
@@ -487,15 +547,4 @@ func processEnvelope(p []byte) OutEnvelope {
 		fmt.Println("No type is matched while processing incoming envelope")
 		return outEnv
 	}
-}
-
-// func setOptions(w http.ResponseWriter) {
-// 	setCorsHeaders(w)
-// 	w.WriteHeader(http.StatusOK)
-// }
-
-func setCorsHeaders(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "127.0.0.1:5173")
-	// w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	// w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Auth")
 }

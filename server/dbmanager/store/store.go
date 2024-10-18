@@ -6,6 +6,7 @@ import (
 	"go-chat-app/dbmanager/errordb"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Message struct {
@@ -15,8 +16,14 @@ type Message struct {
 	// CreatedAt string `json:"created_at"`
 }
 
+type loginUserData struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 type UserStore interface {
 	SaveAccount(name, email, pass string) error
+	AuthenticateAccount(name, pass string) error
 }
 
 type MessageStore interface {
@@ -49,7 +56,7 @@ func (s *SQLstore) SaveChat(ID string) error {
 	return err
 }
 
-func (s *SQLstore) retrieveLastMessageID(chatID string) (error, int) {
+func (s *SQLstore) retrieveLastMessageID(chatID string) (int, error) {
 	tr, _ := s.DB.Begin()
 
 	_, err := s.DB.Exec(`
@@ -60,18 +67,18 @@ func (s *SQLstore) retrieveLastMessageID(chatID string) (error, int) {
 	if err != nil {
 		fmt.Println(err)
 		tr.Rollback()
-		return err, 0
+		return 0, err
 	}
 
 	var message_id int
 	err = s.DB.QueryRow(`
 		SELECT last_message_id FROM last_messages_ids WHERE chatID = $1
 	`, chatID).Scan(&message_id)
-	return err, message_id
+	return message_id, err
 }
 
 func (s *SQLstore) SaveMessage(body, chatID string) error {
-	err, messageID := s.retrieveLastMessageID(chatID)
+	messageID, err := s.retrieveLastMessageID(chatID)
 
 	if err != nil {
 		return err
@@ -107,7 +114,42 @@ func (s *SQLstore) GetAllMessages() ([]Message, error) {
 	return messages, nil
 }
 
+func (s *SQLstore) AuthenticateAccount(name, pass string) error {
+
+	tr, _ := s.DB.Begin()
+
+	var data loginUserData
+	row := tr.QueryRow(
+		`
+	SELECT username, password FROM users
+	WHERE username = $1
+	`, name)
+
+	fmt.Println(row)
+	err := row.Scan(&data.Username, &data.Password)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	fmt.Println(data)
+	passValid, err := authenticatePass([]byte(data.Password), []byte(pass))
+
+	if passValid {
+		tr.Commit()
+		return nil
+	} else {
+		return err
+	}
+}
+
 func (s *SQLstore) SaveAccount(name, email, pass string) error {
+
+	encryptedPass, err := encryptPassword(pass)
+	if err != nil {
+		fmt.Println((err))
+		return err
+	}
+
 	tr, err := s.DB.Begin()
 
 	if err != nil {
@@ -117,7 +159,7 @@ func (s *SQLstore) SaveAccount(name, email, pass string) error {
 
 	_, err = tr.Exec(`
 		INSERT INTO users (username, email, password) VALUES ($1, $2, $3)
-	`, name, email, pass)
+	`, name, email, encryptedPass)
 
 	if err != nil {
 		fmt.Println(err)
@@ -127,4 +169,22 @@ func (s *SQLstore) SaveAccount(name, email, pass string) error {
 	}
 	tr.Commit()
 	return nil
+}
+
+func encryptPassword(pass string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	return string(hash), err
+}
+
+func authenticatePass(hashedPass, pass []byte) (bool, error) {
+	err := bcrypt.CompareHashAndPassword(hashedPass, pass)
+	if err != nil {
+		fmt.Println(err)
+		return false, err
+	}
+	return true, nil
 }

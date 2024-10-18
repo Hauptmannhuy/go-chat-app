@@ -27,3 +27,7 @@ func (s *Service) CreateChat(chatID string) error {
 func (s *Service) CreateAccount(name, email, pass string) error {
 	return s.UserStore.SaveAccount(name, email, pass)
 }
+
+func (s *Service) LoginUser(name, pass string) error {
+	return s.UserStore.AuthenticateAccount(name, pass)
+}
