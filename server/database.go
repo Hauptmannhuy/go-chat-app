@@ -15,30 +15,34 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var db *sql.DB
+type sqlDBwrap struct {
+	db *sql.DB
+}
 
-func openAndMigrateDB() (*sql.DB, error) {
+var dbManager sqlDBwrap
+
+func (dbm *sqlDBwrap) openAndMigrateDB() error {
 	err := godotenv.Load(".env")
 
 	if err != nil {
 		log.Fatalf("Error loading .env file")
-		return nil, err
+		return err
 	}
 	dotenv := os.Getenv("DATABASE_CREDS")
 	fmt.Println(dotenv)
 	dataSourceName := fmt.Sprintf("postgres://%s/dbmanager?sslmode=disable", dotenv)
 
-	db, err = sql.Open("postgres", dataSourceName)
+	dbm.db, err = sql.Open("postgres", dataSourceName)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
-		return nil, err
+		return err
 	}
 	fmt.Println("Connected to database")
 
-	driver, err := postgres.WithInstance(db, &postgres.Config{})
+	driver, err := postgres.WithInstance(dbm.db, &postgres.Config{})
 	if err != nil {
 		log.Fatalf("Could not start SQL driver: %v", err)
-		return nil, err
+		return err
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
@@ -46,26 +50,26 @@ func openAndMigrateDB() (*sql.DB, error) {
 		"postgres", driver)
 	if err != nil {
 		log.Fatalf("Could not start migration: %v", err)
-		return nil, err
+		return err
 	}
 
 	err = m.Up()
 	if err != nil && err != migrate.ErrNoChange {
 		log.Fatalf("Migration failed: %v", err)
-		return nil, err
+		return err
 	}
-	return db, nil
+	return nil
 }
 
-func handleDataBase(env OutEnvelope) error {
+func (dbm *sqlDBwrap) handleDataBase(env OutEnvelope) error {
 	jsoned, _ := json.Marshal(env.Data)
 	switch env.Type {
 	case "NEW_MESSAGE":
-		messageHandler := initializeDBhandler(db, "message")
+		messageHandler := dbManager.initializeDBhandler("message")
 		err := messageHandler.CreateMessageHandler(jsoned)
 		return err
 	case "NEW_CHAT":
-		chatHandler := initializeDBhandler(db, "chat")
+		chatHandler := dbManager.initializeDBhandler("chat")
 		err := chatHandler.CreateChatHandler(jsoned)
 		return err
 	default:
@@ -74,8 +78,8 @@ func handleDataBase(env OutEnvelope) error {
 	}
 }
 
-func initializeDBhandler(db *sql.DB, handlerDeclaration string) handler.Handler {
-	dbStore := store.SQLstore{DB: db}
+func (dbm *sqlDBwrap) initializeDBhandler(handlerDeclaration string) handler.Handler {
+	dbStore := store.SQLstore{DB: dbManager.db}
 	service := service.Service{}
 	handler := handler.Handler{}
 	if handlerDeclaration == "user" {

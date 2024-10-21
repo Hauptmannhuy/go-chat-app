@@ -84,3 +84,7 @@ func (h *Handler) LoginUserHandler(username, pass string) error {
 	}
 	return h.UserService.LoginUser(username, pass)
 }
+
+func (h *Handler) loadUserSubscriptionsHandler(username string) []string {
+	return h.UserService.LoadSubscriptions(username)
+}

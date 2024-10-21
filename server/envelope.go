@@ -47,7 +47,7 @@ func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chat
 		}
 		chatID := msg.ChatID
 		chat := chatList.Chats[chatID]
-		for _, cl := range chat.Members {
+		for _, cl := range chat.members {
 			sendResposeEnvelope(jsonEnv, cl, msgT)
 		}
 	case "NEW_CHAT":
@@ -55,7 +55,7 @@ func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chat
 			sendResposeEnvelope(jsonEnv, cl, msgT)
 		}
 		msg := outEnv.Data.(Chat)
-		chats.CreateChat(msg.ID)
+		chats.CreateChat(msg.id)
 	case "JOIN_CHAT":
 		msg := outEnv.Data.(JoinNotification)
 		chat := chatList.Chats[msg.ChatID]
@@ -68,10 +68,10 @@ func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chat
 }
 
 func sendResposeEnvelope(p []byte, cl *Client, msgT int) {
-	cl.Mutex.Lock()
-	defer cl.Mutex.Unlock()
+	cl.mutex.Lock()
+	defer cl.mutex.Unlock()
 
-	socket := cl.Socket
+	socket := cl.socket
 	if err := socket.WriteMessage(msgT, p); err != nil {
 		log.Println(err)
 		return

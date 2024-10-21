@@ -24,6 +24,7 @@ type loginUserData struct {
 type UserStore interface {
 	SaveAccount(name, email, pass string) error
 	AuthenticateAccount(name, pass string) error
+	LoadSubscriptions(username string) []string
 }
 
 type MessageStore interface {
@@ -189,4 +190,9 @@ func authenticatePass(hashedPass, pass []byte) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+func (s *SQLstore) LoadSubscriptions(username string) []string {
+	var slice []string
+	return slice
 }

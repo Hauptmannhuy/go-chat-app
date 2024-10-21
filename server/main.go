@@ -22,10 +22,10 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
-	var err error
-	db, err = openAndMigrateDB()
+	err := dbManager.openAndMigrateDB()
 	if err != nil {
 		fmt.Println(err)
+		fmt.Println("HERE")
 		return
 	}
 	err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler(AuthHandler{}))
@@ -36,36 +36,48 @@ func main() {
 }
 
 type Client struct {
-	Socket    *websocket.Conn
-	Connected bool
-	Mutex     sync.Mutex
+	socket    *websocket.Conn
+	connected bool
+	mutex     sync.Mutex
+	subs      []string
+}
+
+func initializeClient(w http.ResponseWriter, r *http.Request) *Client {
+	conn, err := upgrader.Upgrade(w, r, nil)
+
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+	usernameCookie, _ := r.Cookie("username")
+
 }
 
 func (c *Client) CloseConnection() {
-	c.Connected = false
+	c.connected = false
 }
 
 func clientMessages(cl *Client) {
 	defer func() {
-		cl.Socket.Close()
+		cl.socket.Close()
 		connSockets.removeClient(cl)
 	}()
 	defer fmt.Println("Connection closed with", cl)
 
 	for {
-		cl.Mutex.Lock()
-		peerSoc := cl.Socket
+		cl.mutex.Lock()
+		peerSoc := cl.socket
 
-		fmt.Println(cl.Connected)
+		fmt.Println(cl.connected)
 
 		messageType, p, err := peerSoc.ReadMessage()
-		cl.Mutex.Unlock()
+		cl.mutex.Unlock()
 		if err != nil {
 			log.Println(err)
 			return
 		}
 		outEnv := processEnvelope(p)
-		err = handleDataBase(outEnv)
+		err = dbManager.handleDataBase(outEnv)
 		if err != nil {
 			errorMessg := Error{err.Error()}
 			outEnv = OutEnvelope{"ERROR", errorMessg}
@@ -90,7 +102,7 @@ func (hub *Hub) removeClient(cl *Client) {
 	fmt.Println("removing client..")
 	for i := range hub.Connections {
 		fmt.Println(i)
-		if cl.Socket == hub.Connections[i].Socket {
+		if cl.socket == hub.Connections[i].socket {
 			fmt.Println("Removed")
 			hub.Connections = append(hub.Connections[:i], hub.Connections[i+1:]...)
 			return

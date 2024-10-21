@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 )
@@ -29,7 +28,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 
 	json.Unmarshal(data, &message)
 
-	userHandler := initializeDBhandler(db, "user")
+	userHandler := dbManager.initializeDBhandler("user")
 
 	err = userHandler.CreateUserHandler(message.Username, message.Email, message.Password)
 
@@ -53,7 +52,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 
 func signInHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("sign in")
-	userHandler := initializeDBhandler(db, "user")
+	userHandler := dbManager.initializeDBhandler("user")
 	var message struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -103,23 +102,13 @@ func SignOutHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func chatHandler(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	var newClient = &Client{
-		Socket:    conn,
-		Connected: true,
-	}
-
+	newClient := initializeClient(w, r)
 	connSockets.AddConection(newClient)
 
-	newClient.Socket.SetCloseHandler(func(code int, text string) error {
+	newClient.socket.SetCloseHandler(func(code int, text string) error {
 		newClient.CloseConnection()
 		return nil
 	})
-
-	if err != nil {
-		log.Println(err)
-		return
-	}
 
 	fmt.Println(connSockets)
 

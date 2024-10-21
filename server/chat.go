@@ -3,32 +3,32 @@ package main
 import "sync"
 
 type Chat struct {
-	Members []*Client
-	ID      string
-	Mutex   sync.Mutex
+	members []*Client
+	id      string
+	mutex   sync.Mutex
 }
 
 type ChatList struct {
 	Chats map[string]*Chat
-	Mutex sync.Mutex
+	mutex sync.Mutex
 }
 
 var chatList ChatList
 
 func (chL *ChatList) CreateChat(chID string) {
-	chL.Mutex.Lock()
-	defer chL.Mutex.Unlock()
+	chL.mutex.Lock()
+	defer chL.mutex.Unlock()
 	if chL.Chats == nil {
 		chL.Chats = make(map[string]*Chat)
 	}
 	chat := &Chat{
-		ID: chID,
+		id: chID,
 	}
 	chL.Chats[chID] = chat
 }
 
 func (c *Chat) AddMember(cl *Client) {
-	c.Mutex.Lock()
-	defer c.Mutex.Unlock()
-	c.Members = append(c.Members, cl)
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.members = append(c.members, cl)
 }

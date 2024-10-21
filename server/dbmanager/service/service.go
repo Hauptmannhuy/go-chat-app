@@ -31,3 +31,7 @@ func (s *Service) CreateAccount(name, email, pass string) error {
 func (s *Service) LoginUser(name, pass string) error {
 	return s.UserStore.AuthenticateAccount(name, pass)
 }
+
+func (s *Service) LoadSubscriptions(username string) []string {
+	return s.UserStore.LoadSubscriptions(username)
+}
