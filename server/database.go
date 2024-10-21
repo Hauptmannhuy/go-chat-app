@@ -63,6 +63,7 @@ func (dbm *sqlDBwrap) openAndMigrateDB() error {
 
 func (dbm *sqlDBwrap) handleDataBase(env OutEnvelope) error {
 	jsoned, _ := json.Marshal(env.Data)
+	fmt.Println(env.Data)
 	switch env.Type {
 	case "NEW_MESSAGE":
 		messageHandler := dbManager.initializeDBhandler("message")
@@ -71,7 +72,12 @@ func (dbm *sqlDBwrap) handleDataBase(env OutEnvelope) error {
 	case "NEW_CHAT":
 		chatHandler := dbManager.initializeDBhandler("chat")
 		err := chatHandler.CreateChatHandler(jsoned)
+
 		return err
+	case "JOIN_CHAT":
+		subHandler := dbManager.initializeDBhandler("subscription")
+		subHandler.SaveSubHandler(jsoned)
+		return nil
 	default:
 		fmt.Println("No write to database")
 		return nil
@@ -82,15 +88,19 @@ func (dbm *sqlDBwrap) initializeDBhandler(handlerDeclaration string) handler.Han
 	dbStore := store.SQLstore{DB: dbManager.db}
 	service := service.Service{}
 	handler := handler.Handler{}
-	if handlerDeclaration == "user" {
+	switch handlerDeclaration {
+	case "user":
 		service.UserStore = &dbStore
 		handler.UserService = service
-	} else if handlerDeclaration == "chat" {
+	case "chat":
 		service.ChatStore = &dbStore
 		handler.ChatService = service
-	} else if handlerDeclaration == "message" {
+	case "message":
 		service.MessageStore = &dbStore
 		handler.MessageService = service
+	case "subscription":
+		service.SubscriptionStore = &dbStore
+		handler.SubscriptionService = service
 	}
 	return handler
 }

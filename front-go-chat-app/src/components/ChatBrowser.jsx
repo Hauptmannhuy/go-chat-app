@@ -17,7 +17,6 @@ function ChatBrowser(){
   const [creationInput, setCreationInput] = useState("")
 
   const sendEnvelope = (type, data) => {
-    console.log(type)
       const actions = {
         "NEW_MESSAGE": {
           type: "NEW_MESSAGE",
@@ -30,7 +29,8 @@ function ChatBrowser(){
         },
         "JOIN_CHAT": {
           type: "JOIN_CHAT",
-          chatID: `${data[0]}`
+          chatID: `${data[0]}`,
+          userID: `${data[1]}`
         }
       }
     
@@ -55,18 +55,24 @@ function ChatBrowser(){
    const changedChat = {name: name, participation: true}
    newChats.push(changedChat)
 
-   sendEnvelope(type, [name])
+   sendEnvelope(type, [name, getUsernameCookie() ])
    setChats(newChats)
   }
 
-  const appendChats = (name) => {
-    const newChat = { name: `${name}`, participation: false };
-    setChats([...chats, newChat]);
+  const appendChats = (names, participation = false) => {
+    typeof names != 'object' ? names = [names] : null
     const newMessages = {...messages}
-    newMessages[name] = []
+    const newChats = []
+    names.forEach(name => {
+      
+     newChats.push({ name: `${name}`, participation: participation });
+     newMessages[name] = []
+    })
+    setChats([...chats, ...newChats]);
     setMessages(newMessages)
   }
-
+  console.log(messages)
+  console.log(chats)
 
   const sendMessage = (name, msg, type = "NEW_MESSAGE") => {
     sendEnvelope(type, [name,msg])
@@ -74,18 +80,28 @@ function ChatBrowser(){
   
   if (websocket != null && websocket != "error") {
     websocket.onmessage = (ev) => {
-      console.log(ev.data)
       const response = JSON.parse(ev.data)
       console.log(response)
-      if (response.Type == 'NEW_CHAT'){
-        appendChats(response.Data.ID)
-      }
-      else {
-        console.log(ev.data)
-      }
-      
-    }
+      switch (response.Type) {
+        case "NEW_CHAT":
+          appendChats(response.Data.id)
+          break;
+          case "GET_ALL_MESSAGES":
+            console.log('All messages',ev.data)
+            break
+          case "LOAD_SUBS":
+           return appendChats(response.Data, true)
+          default:
+            console.log(ev.data)
+          break;
+        }
   }
+}
+
+
+
+
+
 
   
 
@@ -118,14 +134,20 @@ function ChatBrowser(){
 
 
 
-  if (websocket == "error"){
-    navigate(`/sign_up`)
-  }
+
+  // if (websocket == "error"){
+  //   navigate(`/sign_up`)
+  // }
 
   const userAuthenticated = () => {
     if (document.cookie != '') return false;
     return true;
   }
+
+  const getUsernameCookie = () => {
+    return document.cookie.split('=')[1]
+   }
+ 
   
   console.log(document.cookie)
 

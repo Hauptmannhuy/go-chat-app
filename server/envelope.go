@@ -23,6 +23,7 @@ type UserMessage struct {
 
 type JoinNotification struct {
 	ChatID string `json:"chatID"`
+	UserID string `json:"userID"`
 }
 
 type Error struct {
@@ -47,27 +48,28 @@ func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chat
 		}
 		chatID := msg.ChatID
 		chat := chatList.Chats[chatID]
+
 		for _, cl := range chat.members {
-			sendResposeEnvelope(jsonEnv, cl, msgT)
+			sendWsResponse(jsonEnv, cl, msgT)
 		}
 	case "NEW_CHAT":
 		for _, cl := range connSockets.Connections {
-			sendResposeEnvelope(jsonEnv, cl, msgT)
+			sendWsResponse(jsonEnv, cl, msgT)
 		}
 		msg := outEnv.Data.(Chat)
-		chats.CreateChat(msg.id)
+		chats.CreateChat(msg.ID)
 	case "JOIN_CHAT":
 		msg := outEnv.Data.(JoinNotification)
 		chat := chatList.Chats[msg.ChatID]
 		chat.AddMember(cl)
 		fmt.Println(chat, "Chat members")
 	case "ERROR":
-		sendResposeEnvelope(jsonEnv, cl, msgT)
+		sendWsResponse(jsonEnv, cl, msgT)
 	}
 
 }
 
-func sendResposeEnvelope(p []byte, cl *Client, msgT int) {
+func sendWsResponse(p []byte, cl *Client, msgT int) {
 	cl.mutex.Lock()
 	defer cl.mutex.Unlock()
 

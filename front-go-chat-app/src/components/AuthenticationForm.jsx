@@ -12,6 +12,8 @@ export default function AuthenticationForm(){
 
   const [authSuccess, setAuthSuccess] = useState(false)
   const [authStatus, setAuthStatus] = useState(false)
+  const [errorStatus, setErrorStatus] = useState(false)
+  const [errorBody, setErrorBody] = useState(null)
 
   const navigate = useNavigate()
 
@@ -29,6 +31,10 @@ export default function AuthenticationForm(){
 
           if (response.status == 200) {
             setAuthSuccess(true);
+          } else if (response.status == 401) {
+            setErrorStatus(true)
+            const json = await response.json()
+            setErrorBody(json)
           }
 
         } catch (error){
@@ -47,10 +53,16 @@ export default function AuthenticationForm(){
     if (authSuccess) navigate('/chats');
   }, [authSuccess]);
   
+  useEffect(() => {
+    if (errorStatus && errorBody) {
+      console.log(errorBody);
+    }
+  }, [errorStatus, errorBody]);
     
   return (
     <>
-
+    
+    {errorStatus ? (<div>{errorBody}</div>) : null} 
     
 
     {type == '/sign_up' ? (

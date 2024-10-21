@@ -104,7 +104,7 @@ func SignOutHandler(w http.ResponseWriter, r *http.Request) {
 func chatHandler(w http.ResponseWriter, r *http.Request) {
 	newClient := initializeClient(w, r)
 	connSockets.AddConection(newClient)
-
+	defer newClient.sendSubscriptions()
 	newClient.socket.SetCloseHandler(func(code int, text string) error {
 		newClient.CloseConnection()
 		return nil

@@ -3,9 +3,10 @@ package service
 import "go-chat-app/dbmanager/store"
 
 type Service struct {
-	MessageStore store.MessageStore
-	ChatStore    store.ChatStore
-	UserStore    store.UserStore
+	MessageStore      store.MessageStore
+	ChatStore         store.ChatStore
+	UserStore         store.UserStore
+	SubscriptionStore store.SubscriptionStore
 }
 
 func (s *Service) CreateMessage(body, chatID string) error {
@@ -32,6 +33,10 @@ func (s *Service) LoginUser(name, pass string) error {
 	return s.UserStore.AuthenticateAccount(name, pass)
 }
 
-func (s *Service) LoadSubscriptions(username string) []string {
-	return s.UserStore.LoadSubscriptions(username)
+func (s *Service) LoadSubscriptions(username string) ([]string, error) {
+	return s.SubscriptionStore.LoadSubscriptions(username)
+}
+
+func (s *Service) SaveSubscription(username, chatID string) error {
+	return s.SubscriptionStore.SaveSubscription(username, chatID)
 }

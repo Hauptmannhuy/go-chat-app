@@ -15,9 +15,10 @@ func (e *argError) Error() string {
 }
 
 type Handler struct {
-	MessageService service.Service
-	ChatService    service.Service
-	UserService    service.Service
+	MessageService      service.Service
+	ChatService         service.Service
+	UserService         service.Service
+	SubscriptionService service.Service
 }
 
 func (h *Handler) CreateMessageHandler(j []byte) error {
@@ -85,6 +86,21 @@ func (h *Handler) LoginUserHandler(username, pass string) error {
 	return h.UserService.LoginUser(username, pass)
 }
 
-func (h *Handler) loadUserSubscriptionsHandler(username string) []string {
-	return h.UserService.LoadSubscriptions(username)
+func (h *Handler) LoadUserSubscriptionsHandler(username string) ([]string, error) {
+	return h.SubscriptionService.LoadSubscriptions(username)
+}
+
+func (h *Handler) SaveSubHandler(j []byte) error {
+	var data struct {
+		UserID string `json:"userID"`
+		ChatID string `json:"chatID"`
+	}
+	err := json.Unmarshal(j, &data)
+
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	return h.SubscriptionService.SaveSubscription(data.UserID, data.ChatID)
+
 }

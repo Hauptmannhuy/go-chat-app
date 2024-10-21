@@ -1,6 +1,6 @@
 
 function ChatList({chats, handleSelect, handleJoin}) {
-  
+  console.log(chats)
 
   return (
   <>
@@ -8,23 +8,23 @@ function ChatList({chats, handleSelect, handleJoin}) {
    <h2>Chat list</h2>
     <div className="chat-list">
 
-    {chats.map((el) => (
-       el.participation ? ( 
+    {chats.map((chat) => (
+       chat.participation ? ( 
         <button  
 
-          key={el.name} 
-          onClick= {() => {handleSelect(el.name) }}
-          name={el.name}
-          >{el.name} 
+          key={chat.name} 
+          onClick= {() => {handleSelect(chat.name) }}
+          name={chat.name}
+          >{chat.name} 
 
         </button>)
          : 
 
         (
         <button
-        key={el.name}
-        onClick = {() => {handleJoin(el.name)}}>
-          Join chat {el.name}
+        key={chat.name}
+        onClick = {() => {handleJoin(chat.name)}}>
+          Join chat {chat.name}
         </button>
         )
 

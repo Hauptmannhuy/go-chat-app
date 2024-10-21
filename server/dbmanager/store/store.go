@@ -24,7 +24,6 @@ type loginUserData struct {
 type UserStore interface {
 	SaveAccount(name, email, pass string) error
 	AuthenticateAccount(name, pass string) error
-	LoadSubscriptions(username string) []string
 }
 
 type MessageStore interface {
@@ -34,6 +33,11 @@ type MessageStore interface {
 
 type ChatStore interface {
 	SaveChat(ID string) error
+}
+
+type SubscriptionStore interface {
+	LoadSubscriptions(username string) ([]string, error)
+	SaveSubscription(username, chatID string) error
 }
 
 type SQLstore struct {
@@ -192,7 +196,40 @@ func authenticatePass(hashedPass, pass []byte) (bool, error) {
 	return true, nil
 }
 
-func (s *SQLstore) LoadSubscriptions(username string) []string {
-	var slice []string
-	return slice
+func (s *SQLstore) LoadSubscriptions(username string) ([]string, error) {
+
+	var res []string
+
+	tr, _ := s.DB.Begin()
+
+	rows, err := tr.Query(`
+	SELECT chatID from subscriptions WHERE username = $1
+	`, username)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	for rows.Next() {
+		var sub string
+		rows.Scan(&sub)
+		res = append(res, sub)
+	}
+	fmt.Println("Subs:", res)
+	return res, nil
+
+}
+
+func (s *SQLstore) SaveSubscription(username, chatID string) error {
+	tr, _ := s.DB.Begin()
+	_, err := tr.Exec(`
+		INSERT INTO subscriptions (username, chatID) VALUES ($1, $2)
+	`, username, chatID)
+
+	if err != nil {
+		fmt.Println(err)
+		tr.Rollback()
+		return err
+	}
+	tr.Commit()
+	return nil
 }

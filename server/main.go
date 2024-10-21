@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -25,7 +26,6 @@ func main() {
 	err := dbManager.openAndMigrateDB()
 	if err != nil {
 		fmt.Println(err)
-		fmt.Println("HERE")
 		return
 	}
 	err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler(AuthHandler{}))
@@ -50,7 +50,19 @@ func initializeClient(w http.ResponseWriter, r *http.Request) *Client {
 		return nil
 	}
 	usernameCookie, _ := r.Cookie("username")
+	subHandler := dbManager.initializeDBhandler("subscription")
+	subs, err := subHandler.LoadUserSubscriptionsHandler(usernameCookie.Value)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
 
+	return &Client{
+		connected: true,
+		socket:    conn,
+		mutex:     sync.Mutex{},
+		subs:      subs,
+	}
 }
 
 func (c *Client) CloseConnection() {
@@ -63,7 +75,7 @@ func clientMessages(cl *Client) {
 		connSockets.removeClient(cl)
 	}()
 	defer fmt.Println("Connection closed with", cl)
-
+	cl.sendSubscriptions()
 	for {
 		cl.mutex.Lock()
 		peerSoc := cl.socket
@@ -81,7 +93,6 @@ func clientMessages(cl *Client) {
 		if err != nil {
 			errorMessg := Error{err.Error()}
 			outEnv = OutEnvelope{"ERROR", errorMessg}
-			fmt.Println(outEnv.Data, "outenv data")
 			fmt.Println(err)
 		}
 		handleResponseEnvelope(outEnv, &connSockets, messageType, &chatList, cl)
@@ -114,4 +125,26 @@ func (h *Hub) AddConection(c *Client) {
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
 	h.Connections = append(h.Connections, c)
+}
+
+func (cl *Client) sendSubscriptions() {
+	cl.mutex.Lock()
+	defer cl.mutex.Unlock()
+
+	var env OutEnvelope
+	env.Type = "LOAD_SUBS"
+	env.Data = cl.subs
+
+	j, err := json.Marshal(env)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	err = cl.socket.WriteMessage(websocket.TextMessage, j)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 }

@@ -4,7 +4,7 @@ import "sync"
 
 type Chat struct {
 	members []*Client
-	id      string
+	ID      string `json:"id"`
 	mutex   sync.Mutex
 }
 
@@ -22,7 +22,7 @@ func (chL *ChatList) CreateChat(chID string) {
 		chL.Chats = make(map[string]*Chat)
 	}
 	chat := &Chat{
-		id: chID,
+		ID: chID,
 	}
 	chL.Chats[chID] = chat
 }
