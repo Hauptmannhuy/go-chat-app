@@ -129,6 +129,7 @@ func (s *SQLstore) AuthenticateAccount(name, pass string) error {
 	err := row.Scan(&data.Username, &data.Password)
 	if err != nil {
 		fmt.Println(err)
+		err = errordb.ParseError(err.Error())
 		return err
 	}
 	fmt.Println(data)
@@ -138,6 +139,7 @@ func (s *SQLstore) AuthenticateAccount(name, pass string) error {
 		tr.Commit()
 		return nil
 	} else {
+		err = errordb.ParseError(err.Error())
 		return err
 	}
 }

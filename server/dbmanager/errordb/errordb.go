@@ -2,7 +2,6 @@ package errordb
 
 import (
 	"fmt"
-	"strings"
 )
 
 type ErrorDB struct {
@@ -15,14 +14,14 @@ func (e *ErrorDB) Error() string {
 
 func ParseError(dberr string) error {
 	var keyErrors = map[string]string{
-		"users_username_key": "This name is occupied",
-		"users_email_key":    "This email is already occupied",
-		"chats_pkey":         "This chat name is already occupied",
+		`pq: duplicate key value violates unique constraint "users_username_key"`: "This name is occupied",
+		`pq: duplicate key value violates unique constraint "users_email_key"`:    "This email is already occupied",
+		`pq: duplicate key value violates unique constraint "chats_pkey"`:         "This chat name is already occupied",
+		"sql: no rows in result set":                                              "Account with provided data doesn't exists.",
+		`crypto/bcrypt: hashedPassword is not the hash of the given password`:     "Wrong password.",
 	}
 
-	splitErr := strings.Split(dberr, " ")
-	key := strings.Trim(splitErr[len(splitErr)-1], "\"")
-	el, ok := keyErrors[key]
+	el, ok := keyErrors[dberr]
 
 	if ok {
 		return &ErrorDB{el}
