@@ -28,6 +28,8 @@ func main() {
 		fmt.Println(err)
 		return
 	}
+
+	chatList.initializeRooms()
 	err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler(AuthHandler{}))
 
 	if err != nil {
@@ -36,18 +38,29 @@ func main() {
 }
 
 type Client struct {
+	index     int
 	socket    *websocket.Conn
 	connected bool
 	mutex     sync.Mutex
 	subs      []string
 }
 
-func initializeClient(w http.ResponseWriter, r *http.Request) *Client {
+func (chL *ChatList) addClientToSubRooms(cl *Client) {
+	chL.mutex.Lock()
+	defer chL.mutex.Unlock()
+	for _, chID := range cl.subs {
+		chat := chL.Chats[chID]
+		chat.AddMember(cl)
+	}
+}
+
+func initializeWSconn(w http.ResponseWriter, r *http.Request) *Client {
 	conn, err := upgrader.Upgrade(w, r, nil)
 
 	if err != nil {
 		log.Println(err)
 		return nil
+
 	}
 	usernameCookie, _ := r.Cookie("username")
 	subHandler := dbManager.initializeDBhandler("subscription")
@@ -122,9 +135,11 @@ func (hub *Hub) removeClient(cl *Client) {
 }
 
 func (h *Hub) AddConection(c *Client) {
+	fmt.Println("connected sockets:", h.Connections)
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
 	h.Connections = append(h.Connections, c)
+
 }
 
 func (cl *Client) sendSubscriptions() {

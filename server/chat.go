@@ -1,6 +1,8 @@
 package main
 
-import "sync"
+import (
+	"sync"
+)
 
 type Chat struct {
 	members []*Client
@@ -18,13 +20,23 @@ var chatList ChatList
 func (chL *ChatList) CreateChat(chID string) {
 	chL.mutex.Lock()
 	defer chL.mutex.Unlock()
-	if chL.Chats == nil {
-		chL.Chats = make(map[string]*Chat)
-	}
+
 	chat := &Chat{
 		ID: chID,
 	}
 	chL.Chats[chID] = chat
+}
+
+func (chL *ChatList) initializeRooms() {
+	dbChatHandler := dbManager.initializeDBhandler("chat")
+	list, _ := dbChatHandler.GetAllChats()
+	chL.Chats = make(map[string]*Chat)
+	for _, chID := range list {
+		chat := &Chat{
+			ID: chID,
+		}
+		chL.Chats[chID] = chat
+	}
 }
 
 func (c *Chat) AddMember(cl *Client) {

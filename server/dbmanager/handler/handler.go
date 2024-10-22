@@ -45,6 +45,10 @@ func (h *Handler) CreateMessageHandler(j []byte) error {
 	return nil
 }
 
+func (h *Handler) GetAllChats() ([]string, error) {
+	return h.ChatService.GetAllChats()
+}
+
 func (h *Handler) CreateChatHandler(j []byte) error {
 	var chatObj struct {
 		ID string

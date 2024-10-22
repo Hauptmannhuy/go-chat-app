@@ -33,6 +33,7 @@ type MessageStore interface {
 
 type ChatStore interface {
 	SaveChat(ID string) error
+	GetChats() ([]string, error)
 }
 
 type SubscriptionStore interface {
@@ -42,6 +43,24 @@ type SubscriptionStore interface {
 
 type SQLstore struct {
 	DB *sql.DB
+}
+
+func (s *SQLstore) GetChats() ([]string, error) {
+	rows, err := s.DB.Query(`SELECT id FROM chats`)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	var res []string
+	defer rows.Close()
+
+	for rows.Next() {
+		var row string
+		rows.Scan(&row)
+		res = append(res, row)
+	}
+	return res, nil
 }
 
 func (s *SQLstore) SaveChat(ID string) error {

@@ -31,9 +31,9 @@ type Error struct {
 }
 
 func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chats *ChatList, cl *Client) {
-	fmt.Println(outEnv)
+	fmt.Println(cl.index, "client index in handle response env")
 	jsonEnv, err := json.Marshal(outEnv)
-
+	fmt.Println("slice of sockets:", connSockets.Connections)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -41,11 +41,8 @@ func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chat
 
 	switch outEnv.Type {
 	case "NEW_MESSAGE":
-		msg, ok := outEnv.Data.(UserMessage)
-		if ok {
-			fmt.Println("Message body:", msg.Body)
-			fmt.Println("Chat ID:", msg.ChatID)
-		}
+		msg := outEnv.Data.(UserMessage)
+
 		chatID := msg.ChatID
 		chat := chatList.Chats[chatID]
 
@@ -53,8 +50,10 @@ func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chat
 			sendWsResponse(jsonEnv, cl, msgT)
 		}
 	case "NEW_CHAT":
-		for _, cl := range connSockets.Connections {
-			sendWsResponse(jsonEnv, cl, msgT)
+		for i := 0; i < len(connSockets.Connections); i++ {
+			fmt.Println(len(connSockets.Connections), "connections")
+			connCl := connSockets.Connections[i]
+			sendWsResponse(jsonEnv, connCl, msgT)
 		}
 		msg := outEnv.Data.(Chat)
 		chats.CreateChat(msg.ID)
@@ -62,7 +61,6 @@ func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chat
 		msg := outEnv.Data.(JoinNotification)
 		chat := chatList.Chats[msg.ChatID]
 		chat.AddMember(cl)
-		fmt.Println(chat, "Chat members")
 	case "ERROR":
 		sendWsResponse(jsonEnv, cl, msgT)
 	}
@@ -70,14 +68,12 @@ func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chat
 }
 
 func sendWsResponse(p []byte, cl *Client, msgT int) {
-	cl.mutex.Lock()
-	defer cl.mutex.Unlock()
-
 	socket := cl.socket
 	if err := socket.WriteMessage(msgT, p); err != nil {
-		log.Println(err)
+		log.Println("Error writing to WebSocket:", err)
 		return
 	}
+	fmt.Println("Message sent successfully to client", string(p))
 }
 
 func processEnvelope(p []byte) OutEnvelope {
