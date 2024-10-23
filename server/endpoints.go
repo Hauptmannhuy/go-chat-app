@@ -103,9 +103,10 @@ func SignOutHandler(w http.ResponseWriter, r *http.Request) {
 
 func chatHandler(w http.ResponseWriter, r *http.Request) {
 	newClient := initializeWSconn(w, r)
+	newClient.sendSubscriptions()
+	newClient.sendMessageHistory()
 	chatList.addClientToSubRooms(newClient)
 	connSockets.AddConection(newClient)
-	defer newClient.sendSubscriptions()
 	newClient.socket.SetCloseHandler(func(code int, text string) error {
 		newClient.CloseConnection()
 		return nil

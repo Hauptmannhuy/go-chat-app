@@ -7,6 +7,7 @@ import SignOutButton from "./SignOutButton";
 import { useRef } from "react";
 
 function ChatBrowser(){ 
+   
 
   const socketConnection = useRef(null)
 
@@ -24,8 +25,9 @@ function ChatBrowser(){
       const actions = {
         "NEW_MESSAGE": {
           type: "NEW_MESSAGE",
-          chatid: `${data[0]}`,
-          body: `${data[1]}`,
+          userid: `${data[0]}`,
+          chatid: `${data[1]}`,
+          body: `${data[2]}`,
         },
         "NEW_CHAT": {
           type: "NEW_CHAT",
@@ -87,8 +89,8 @@ function ChatBrowser(){
   }
 
 
-  const sendMessage = (name, msg, type = "NEW_MESSAGE") => {
-    sendEnvelope(type, [name,msg])
+  const sendMessage = (chatID, userID, msg, type = "NEW_MESSAGE") => {
+    sendEnvelope(type, [userID, chatID, msg])
   }
   
  
@@ -104,6 +106,9 @@ function ChatBrowser(){
         break;
       case "LOAD_SUBS":
         return addChatsAndMessages(response.Data, true);
+      case "LOAD_MESSAGES":
+        console.log(response)
+        break;
       default:
         console.log(ev.data);
         break;
@@ -168,10 +173,10 @@ function ChatBrowser(){
     <div className="chat-display">
       {chatSelected ? (
       <Chat
-      ws = {socketConnection.current}
       chatName = {chatSelected}
       msgHandler = {sendMessage}
-      messages = {messages[chatSelected]}/>
+      messages = {messages[chatSelected]}
+      userID = {getUsernameCookie()}/>
       ) : (
       <h2>Chat display</h2>
           )}

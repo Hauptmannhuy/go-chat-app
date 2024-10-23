@@ -2,7 +2,7 @@ import { useState } from "react"
 
 
 
-function Chat({ws, chatName, msgHandler, messages}){
+function Chat({ chatName, msgHandler, messages, userID}){
   console.log("chat changed to", chatName)
 
   const [inputValue, setInputValue] = useState("")
@@ -15,7 +15,7 @@ function Chat({ws, chatName, msgHandler, messages}){
       (<p key={i}>{el}</p>)
       )}
     </div>
-    <button onClick={() => msgHandler(chatName, inputValue)}>Send</button>
+    <button onClick={() => msgHandler(chatName, userID, inputValue)}>Send</button>
     <input type="text" onChange={(e) => (setInputValue(e.target.value))} />
   </>
   )

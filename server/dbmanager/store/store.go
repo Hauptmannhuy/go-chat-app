@@ -10,9 +10,10 @@ import (
 )
 
 type Message struct {
-	ID     int    `json:"id"`
-	Body   string `json:"body"`
-	ChatID string `json:"chatID"`
+	UserID    string `json:"user_id"`
+	Body      string `json:"body"`
+	MessageID string `json:"message_id"`
+	ChatID    string `json:"chatid"`
 	// CreatedAt string `json:"created_at"`
 }
 
@@ -27,8 +28,8 @@ type UserStore interface {
 }
 
 type MessageStore interface {
-	SaveMessage(body, description string) error
-	GetAllMessages() ([]Message, error)
+	SaveMessage(body, chatID, userID string) error
+	GetChatsMessages(subs []string) (interface{}, error)
 }
 
 type ChatStore interface {
@@ -101,13 +102,13 @@ func (s *SQLstore) retrieveLastMessageID(chatID string) (int, error) {
 	return message_id, err
 }
 
-func (s *SQLstore) SaveMessage(body, chatID string) error {
+func (s *SQLstore) SaveMessage(body, chatID, userID string) error {
 	messageID, err := s.retrieveLastMessageID(chatID)
 
 	if err != nil {
 		return err
 	}
-	_, err = s.DB.Exec("INSERT INTO messages (body, chatID, message_id) VALUES ($1, $2, $3)", body, chatID, messageID)
+	_, err = s.DB.Exec("INSERT INTO messages (body, user_id, chatID, message_id) VALUES ($1, $2, $3, $4)", body, userID, chatID, messageID)
 	if err != nil {
 		fmt.Println("failed to save message")
 		return err
@@ -115,27 +116,33 @@ func (s *SQLstore) SaveMessage(body, chatID string) error {
 	return err
 }
 
-func (s *SQLstore) GetAllMessages() ([]Message, error) {
-	rows, err := s.DB.Query("SELECT id, body, chatID, created_at FROM messages")
-	if err != nil {
-		return nil, err
-	}
+func (s *SQLstore) GetChatsMessages(subs []string) (interface{}, error) {
 
-	defer rows.Close()
+	chats := make(map[string][]interface{})
 
-	var messages []Message
+	for _, sub := range subs {
 
-	for rows.Next() {
-		var message Message
+		rows, err := s.DB.Query(fmt.Sprintf("SELECT message_id, body, chatID, user_id FROM messages WHERE chatid = '%s'", sub))
 
-		if err := rows.Scan(&message.ID, &message.Body, &message.ChatID); err != nil {
+		if err != nil {
 			return nil, err
 		}
+		defer rows.Close()
 
-		messages = append(messages, message)
+		var resultRows []interface{}
+		for rows.Next() {
+			var chatMessage Message
+
+			if err := rows.Scan(&chatMessage.MessageID, &chatMessage.Body, &chatMessage.ChatID, &chatMessage.UserID); err != nil {
+				return nil, err
+			}
+			resultRows = append(resultRows, chatMessage)
+
+		}
+		chats[sub] = resultRows
 	}
 
-	return messages, nil
+	return chats, nil
 }
 
 func (s *SQLstore) AuthenticateAccount(name, pass string) error {

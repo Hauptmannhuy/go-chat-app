@@ -22,33 +22,29 @@ func NewAuthMiddlewareHandler(handler http.Handler) AuthorizationMiddleware {
 }
 
 func (am AuthorizationMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-
-	if req.URL.Path == "/sign_in" {
+	switch req.URL.Path {
+	case "/sign_in":
 		signInHandler(w, req)
 		return
-	}
-	if req.URL.Path == "/sign_up" {
+	case "/sign_up":
 		signUpHandler(w, req)
 		return
-	}
-	if req.URL.Path == "/sign_out" {
+	case "/sign_out":
 		SignOutHandler(w, req)
 		return
 	}
 
 	cookie, err := req.Cookie("token")
-
 	if err != nil {
-		fmt.Println(err)
-		fmt.Println("redirect")
+		fmt.Println("Error retrieving cookie:", err)
 		http.Redirect(w, req, "/sign_up", http.StatusSeeOther)
-	} else {
-		ok := verifyToken(cookie)
-		if !ok {
-			http.Redirect(w, req, "/sign_up", http.StatusSeeOther)
-		} else {
-			chatHandler(w, req)
-		}
+		return
 	}
 
+	if !verifyToken(cookie) {
+		http.Redirect(w, req, "/sign_up", http.StatusSeeOther)
+		return
+	}
+
+	chatHandler(w, req)
 }

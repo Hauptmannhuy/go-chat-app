@@ -25,6 +25,7 @@ func (h *Handler) CreateMessageHandler(j []byte) error {
 	var message struct {
 		Body   string
 		ChatID string
+		UserID string
 	}
 
 	if err := json.Unmarshal(j, &message); err != nil {
@@ -38,7 +39,7 @@ func (h *Handler) CreateMessageHandler(j []byte) error {
 		return err
 	}
 
-	if err := h.MessageService.CreateMessage(message.Body, message.ChatID); err != nil {
+	if err := h.MessageService.CreateMessage(message.Body, message.ChatID, message.UserID); err != nil {
 		fmt.Println(err, "Failed to create message")
 		return err
 	}
@@ -107,4 +108,8 @@ func (h *Handler) SaveSubHandler(j []byte) error {
 	}
 	return h.SubscriptionService.SaveSubscription(data.UserID, data.ChatID)
 
+}
+
+func (h *Handler) GetChatsMessages(subs []string) (interface{}, error) {
+	return h.MessageService.RetrieveChatsMessages(subs)
 }

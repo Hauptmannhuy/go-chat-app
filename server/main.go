@@ -39,22 +39,15 @@ func main() {
 
 type Client struct {
 	index     int
+	username  string
 	socket    *websocket.Conn
 	connected bool
 	mutex     sync.Mutex
 	subs      []string
 }
 
-func (chL *ChatList) addClientToSubRooms(cl *Client) {
-	chL.mutex.Lock()
-	defer chL.mutex.Unlock()
-	for _, chID := range cl.subs {
-		chat := chL.Chats[chID]
-		chat.AddMember(cl)
-	}
-}
-
 func initializeWSconn(w http.ResponseWriter, r *http.Request) *Client {
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 
 	if err != nil {
@@ -72,6 +65,7 @@ func initializeWSconn(w http.ResponseWriter, r *http.Request) *Client {
 
 	return &Client{
 		connected: true,
+		username:  usernameCookie.Value,
 		socket:    conn,
 		mutex:     sync.Mutex{},
 		subs:      subs,
@@ -88,7 +82,6 @@ func clientMessages(cl *Client) {
 		connSockets.removeClient(cl)
 	}()
 	defer fmt.Println("Connection closed with", cl)
-	cl.sendSubscriptions()
 	for {
 		cl.mutex.Lock()
 		peerSoc := cl.socket
@@ -143,23 +136,29 @@ func (h *Hub) AddConection(c *Client) {
 }
 
 func (cl *Client) sendSubscriptions() {
-	cl.mutex.Lock()
-	defer cl.mutex.Unlock()
-
 	var env OutEnvelope
 	env.Type = "LOAD_SUBS"
 	env.Data = cl.subs
 
 	j, err := json.Marshal(env)
-
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	err = cl.socket.WriteMessage(websocket.TextMessage, j)
-
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	sendWsResponse(j, cl, websocket.TextMessage)
+}
+
+func (cl *Client) sendMessageHistory() {
+	dbMessageHandler := dbManager.initializeDBhandler("message")
+	data, _ := dbMessageHandler.GetChatsMessages(cl.subs)
+	var env = OutEnvelope{
+		Type: "LOAD_MESSAGES",
+		Data: data,
+	}
+	json, err := json.Marshal(env)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	sendWsResponse(json, cl, websocket.TextMessage)
 }

@@ -18,7 +18,7 @@ type Envelope struct {
 type UserMessage struct {
 	Body   string
 	ChatID string
-	// UserID string
+	UserID string
 }
 
 type JoinNotification struct {
@@ -105,6 +105,7 @@ func processEnvelope(p []byte) OutEnvelope {
 			log.Fatal(err)
 		}
 		outEnv.Data = s.Chat
+		fmt.Println("res", outEnv.Data)
 		return outEnv
 	case "JOIN_CHAT":
 		var s struct {

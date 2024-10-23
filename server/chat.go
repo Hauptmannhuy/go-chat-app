@@ -39,6 +39,15 @@ func (chL *ChatList) initializeRooms() {
 	}
 }
 
+func (chL *ChatList) addClientToSubRooms(cl *Client) {
+	chL.mutex.Lock()
+	defer chL.mutex.Unlock()
+	for _, chID := range cl.subs {
+		chat := chL.Chats[chID]
+		chat.AddMember(cl)
+	}
+}
+
 func (c *Chat) AddMember(cl *Client) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()

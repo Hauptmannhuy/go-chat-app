@@ -9,12 +9,8 @@ type Service struct {
 	SubscriptionStore store.SubscriptionStore
 }
 
-func (s *Service) CreateMessage(body, chatID string) error {
-	return s.MessageStore.SaveMessage(body, chatID)
-}
-
-func (s *Service) ListMessages() ([]store.Message, error) {
-	return s.MessageStore.GetAllMessages()
+func (s *Service) CreateMessage(body, chatID, userID string) error {
+	return s.MessageStore.SaveMessage(body, chatID, userID)
 }
 
 func (s *Service) GetAllChats() ([]string, error) {
@@ -39,4 +35,8 @@ func (s *Service) LoadSubscriptions(username string) ([]string, error) {
 
 func (s *Service) SaveSubscription(username, chatID string) error {
 	return s.SubscriptionStore.SaveSubscription(username, chatID)
+}
+
+func (s *Service) RetrieveChatsMessages(subs []string) (interface{}, error) {
+	return s.MessageStore.GetChatsMessages(subs)
 }
