@@ -4,13 +4,17 @@ import Chat from "./Chat";
 import ChatList from "./ChatList";
 import { useNavigate } from "react-router-dom";
 import SignOutButton from "./SignOutButton";
+import { useRef } from "react";
 
 function ChatBrowser(){ 
+
+  const socketConnection = useRef(null)
+
   const navigate = useNavigate()
   
   const [chats, setChats] = useState([]);
   const [messages, setMessages] = useState({})
-  const [websocket, setWebsocket] = useState(null)
+
 
   const [chatSelected, setSelectedChat] = useState(null)
   const [creationChatInvoked, setInvokeStatus] = useState(false)
@@ -35,8 +39,8 @@ function ChatBrowser(){
       }
     
       const json = actions[type];
-      if (json && websocket) {
-        websocket.send(JSON.stringify(json));
+      if (json) {
+        socketConnection.current.send(JSON.stringify(json));
       } else {
         console.error(`Unknown action type: ${type}`);
       }
@@ -59,85 +63,52 @@ function ChatBrowser(){
    setChats(newChats)
   }
 
-  const appendChats = (names, participation = false) => {
+  const addChatsAndMessages = (names, participation = false) => {
+    if (!names) return
     typeof names != 'object' ? names = [names] : null
-    const newMessages = {...messages}
-    const newChats = []
     names.forEach(name => {
-      
-     newChats.push({ name: `${name}`, participation: participation });
-     newMessages[name] = []
+      addChatHandler(name, participation)
+      addMessagesObjectHandler(name)
     })
-    setChats([...chats, ...newChats]);
-    setMessages(newMessages)
   }
-  console.log(messages)
-  console.log(chats)
+
+  const addChatHandler = (name, participation) => {
+    setChats((chats) => {
+      const newChat = {name: `${name}`, participation: participation}
+      return [...chats, newChat]
+    })
+  }
+  const addMessagesObjectHandler = (name) => {
+    setMessages((messages) => {
+      const newMessages = {...messages}
+      newMessages[name] = []
+      return newMessages
+    })
+  }
+
 
   const sendMessage = (name, msg, type = "NEW_MESSAGE") => {
     sendEnvelope(type, [name,msg])
   }
   
-  if (websocket != null && websocket != "error") {
-    websocket.onmessage = (ev) => {
-      const response = JSON.parse(ev.data)
-      console.log(response)
-      switch (response.Type) {
-        case "NEW_CHAT":
-          appendChats(response.Data.id)
-          break;
-          case "GET_ALL_MESSAGES":
-            console.log('All messages',ev.data)
-            break
-          case "LOAD_SUBS":
-           return appendChats(response.Data, true)
-          default:
-            console.log(ev.data)
-          break;
-        }
-  }
-}
-
-
-
-
-
-
-  
-
-  useEffect(() => {
-
-        const ws = new WebSocket(`/socket/chat`)
-      
-        ws.onopen = function () {
-          console.log("WebSocket connection established.");
-          console.log(ws.readyState, 'readyState')
-          setWebsocket(ws)
-        };
-        ws.onerror = function (error) {
-          console.error("WebSocket error:", error);
-          setWebsocket("error")
-      };
-      ws.onclose = function (event) {
-        if (event.code === 1006) {
-            console.error("Connection closed abnormally, possibly due to redirection.");
-           
-        } else {
-            console.log("WebSocket connection closed:", event);
-        }
+ 
+  function processSocketMessage(ev) {
+    const response = JSON.parse(ev.data);
+    console.log(response.Data)
+    switch (response.Type) {
+      case "NEW_CHAT":
+        addChatsAndMessages(response.Data.id);
+        break;
+      case "GET_ALL_MESSAGES":
+        console.log('All messages', ev.data);
+        break;
+      case "LOAD_SUBS":
+        return addChatsAndMessages(response.Data, true);
+      default:
+        console.log(ev.data);
+        break;
     }
-
-    return () => {
-      ws.close()
-    }
-  }, [])
-
-
-
-
-  // if (websocket == "error"){
-  //   navigate(`/sign_up`)
-  // }
+  }; 
 
   const userAuthenticated = () => {
     if (document.cookie != '') return false;
@@ -148,8 +119,25 @@ function ChatBrowser(){
     return document.cookie.split('=')[1]
    }
  
+  useEffect(()=>{
+    const websocket = new WebSocket("/socket/chat")
+
+    websocket.addEventListener("open", () => {
+      socketConnection.current = websocket
+    })
+
+    websocket.addEventListener("message", processSocketMessage)
+
+    
+    websocket.addEventListener("close", (ev) => {
+     
+    })
+    return () => websocket.close()
+  }, [])
+
   
-  console.log(document.cookie)
+
+  
 
   
   return (
@@ -180,7 +168,7 @@ function ChatBrowser(){
     <div className="chat-display">
       {chatSelected ? (
       <Chat
-      ws = {websocket}
+      ws = {socketConnection.current}
       chatName = {chatSelected}
       msgHandler = {sendMessage}
       messages = {messages[chatSelected]}/>
