@@ -25,8 +25,8 @@ function ChatBrowser(){
       const actions = {
         "NEW_MESSAGE": {
           type: "NEW_MESSAGE",
-          userid: `${data[0]}`,
-          chatid: `${data[1]}`,
+          user_id: `${data[0]}`,
+          chat_id: `${data[1]}`,
           body: `${data[2]}`,
         },
         "NEW_CHAT": {
@@ -35,8 +35,8 @@ function ChatBrowser(){
         },
         "JOIN_CHAT": {
           type: "JOIN_CHAT",
-          chatID: `${data[0]}`,
-          userID: `${data[1]}`
+          chat_id: `${data[0]}`,
+          user_id: `${data[1]}`
         }
       }
     
@@ -88,6 +88,21 @@ function ChatBrowser(){
     })
   }
 
+  function saveLocalMessage(message) {
+    setMessages((messages) => {
+      const newMessages = {...messages}
+      console.log(newMessages)
+      
+    
+      newMessages[message.chat_id].push(message)
+      return newMessages
+    })
+  }
+
+  function handleMessageLoad(data){
+   setMessages((messages) => ({...messages, ...data}))
+  }
+
 
   const sendMessage = (chatID, userID, msg, type = "NEW_MESSAGE") => {
     sendEnvelope(type, [userID, chatID, msg])
@@ -101,12 +116,13 @@ function ChatBrowser(){
       case "NEW_CHAT":
         addChatsAndMessages(response.Data.id);
         break;
-      case "GET_ALL_MESSAGES":
-        console.log('All messages', ev.data);
+      case "NEW_MESSAGE":
+        saveLocalMessage(response.Data)
         break;
       case "LOAD_SUBS":
         return addChatsAndMessages(response.Data, true);
       case "LOAD_MESSAGES":
+        handleMessageLoad(response.Data)
         console.log(response)
         break;
       default:
@@ -142,7 +158,7 @@ function ChatBrowser(){
 
   
 
-  
+  console.log("messages", messages)
 
   
   return (

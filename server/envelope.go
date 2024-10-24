@@ -16,14 +16,14 @@ type Envelope struct {
 }
 
 type UserMessage struct {
-	Body   string
-	ChatID string
-	UserID string
+	Body   string `json:"body"`
+	ChatID string `json:"chat_id"`
+	UserID string `json:"user_id"`
 }
 
 type JoinNotification struct {
-	ChatID string `json:"chatID"`
-	UserID string `json:"userID"`
+	ChatID string `json:"chat_id"`
+	UserID string `json:"user_id"`
 }
 
 type Error struct {

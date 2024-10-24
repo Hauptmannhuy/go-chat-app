@@ -23,9 +23,9 @@ type Handler struct {
 
 func (h *Handler) CreateMessageHandler(j []byte) error {
 	var message struct {
-		Body   string
-		ChatID string
-		UserID string
+		Body   string `json:"body"`
+		ChatID string `json:"chat_id"`
+		UserID string `json:"user_id"`
 	}
 
 	if err := json.Unmarshal(j, &message); err != nil {
@@ -97,8 +97,8 @@ func (h *Handler) LoadUserSubscriptionsHandler(username string) ([]string, error
 
 func (h *Handler) SaveSubHandler(j []byte) error {
 	var data struct {
-		UserID string `json:"userID"`
-		ChatID string `json:"chatID"`
+		UserID string `json:"user_id"`
+		ChatID string `json:"chat_id"`
 	}
 	err := json.Unmarshal(j, &data)
 

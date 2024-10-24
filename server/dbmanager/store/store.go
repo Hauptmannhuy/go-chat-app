@@ -13,7 +13,7 @@ type Message struct {
 	UserID    string `json:"user_id"`
 	Body      string `json:"body"`
 	MessageID string `json:"message_id"`
-	ChatID    string `json:"chatid"`
+	ChatID    string `json:"chat_id"`
 	// CreatedAt string `json:"created_at"`
 }
 
@@ -85,9 +85,9 @@ func (s *SQLstore) retrieveLastMessageID(chatID string) (int, error) {
 	tr, _ := s.DB.Begin()
 
 	_, err := s.DB.Exec(`
-		INSERT INTO last_messages_ids (chatID, last_message_id)
+		INSERT INTO last_messages_ids (chat_id, last_message_id)
         VALUES ($1, 0)
-        ON CONFLICT (chatID) DO UPDATE SET last_message_id = last_messages_ids.last_message_id + 1
+        ON CONFLICT (chat_id) DO UPDATE SET last_message_id = last_messages_ids.last_message_id + 1
 		`, chatID)
 	if err != nil {
 		fmt.Println(err)
@@ -97,7 +97,7 @@ func (s *SQLstore) retrieveLastMessageID(chatID string) (int, error) {
 
 	var message_id int
 	err = s.DB.QueryRow(`
-		SELECT last_message_id FROM last_messages_ids WHERE chatID = $1
+		SELECT last_message_id FROM last_messages_ids WHERE chat_id = $1
 	`, chatID).Scan(&message_id)
 	return message_id, err
 }
@@ -108,7 +108,7 @@ func (s *SQLstore) SaveMessage(body, chatID, userID string) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.DB.Exec("INSERT INTO messages (body, user_id, chatID, message_id) VALUES ($1, $2, $3, $4)", body, userID, chatID, messageID)
+	_, err = s.DB.Exec("INSERT INTO messages (body, user_id, chat_id, message_id) VALUES ($1, $2, $3, $4)", body, userID, chatID, messageID)
 	if err != nil {
 		fmt.Println("failed to save message")
 		return err
@@ -117,13 +117,16 @@ func (s *SQLstore) SaveMessage(body, chatID, userID string) error {
 }
 
 func (s *SQLstore) GetChatsMessages(subs []string) (interface{}, error) {
-
 	chats := make(map[string][]interface{})
+	queryResults := make(map[string]bool)
+
+	for _, key := range subs {
+		queryResults[key] = false
+	}
 
 	for _, sub := range subs {
 
-		rows, err := s.DB.Query(fmt.Sprintf("SELECT message_id, body, chatID, user_id FROM messages WHERE chatid = '%s'", sub))
-
+		rows, err := s.DB.Query(fmt.Sprintf("SELECT message_id, body, chat_id, user_id FROM messages WHERE chat_id = '%s'", sub))
 		if err != nil {
 			return nil, err
 		}
@@ -131,6 +134,7 @@ func (s *SQLstore) GetChatsMessages(subs []string) (interface{}, error) {
 
 		var resultRows []interface{}
 		for rows.Next() {
+			queryResults[sub] = true
 			var chatMessage Message
 
 			if err := rows.Scan(&chatMessage.MessageID, &chatMessage.Body, &chatMessage.ChatID, &chatMessage.UserID); err != nil {
@@ -139,7 +143,18 @@ func (s *SQLstore) GetChatsMessages(subs []string) (interface{}, error) {
 			resultRows = append(resultRows, chatMessage)
 
 		}
+
 		chats[sub] = resultRows
+	}
+
+	for key, keyVal := range queryResults {
+		if !keyVal {
+			delete(chats, key)
+		}
+	}
+
+	if len(chats) == 0 {
+		return nil, &errordb.ErrorDB{"No chats to fetch"}
 	}
 
 	return chats, nil
@@ -229,7 +244,7 @@ func (s *SQLstore) LoadSubscriptions(username string) ([]string, error) {
 	tr, _ := s.DB.Begin()
 
 	rows, err := tr.Query(`
-	SELECT chatID from subscriptions WHERE username = $1
+	SELECT chat_id from subscriptions WHERE username = $1
 	`, username)
 	if err != nil {
 		fmt.Println(err)
@@ -248,7 +263,7 @@ func (s *SQLstore) LoadSubscriptions(username string) ([]string, error) {
 func (s *SQLstore) SaveSubscription(username, chatID string) error {
 	tr, _ := s.DB.Begin()
 	_, err := tr.Exec(`
-		INSERT INTO subscriptions (username, chatID) VALUES ($1, $2)
+		INSERT INTO subscriptions (username, chat_id) VALUES ($1, $2)
 	`, username, chatID)
 
 	if err != nil {

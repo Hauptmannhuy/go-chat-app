@@ -12,7 +12,7 @@ function Chat({ chatName, msgHandler, messages, userID}){
   <>
  <div>
       {messages.map((el,i) => 
-      (<p key={i}>{el}</p>)
+      (<p key={i}>{el.user_id}: {el.body}</p>)
       )}
     </div>
     <button onClick={() => msgHandler(chatName, userID, inputValue)}>Send</button>

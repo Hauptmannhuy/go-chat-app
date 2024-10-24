@@ -150,7 +150,11 @@ func (cl *Client) sendSubscriptions() {
 
 func (cl *Client) sendMessageHistory() {
 	dbMessageHandler := dbManager.initializeDBhandler("message")
-	data, _ := dbMessageHandler.GetChatsMessages(cl.subs)
+	data, err := dbMessageHandler.GetChatsMessages(cl.subs)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	var env = OutEnvelope{
 		Type: "LOAD_MESSAGES",
 		Data: data,
