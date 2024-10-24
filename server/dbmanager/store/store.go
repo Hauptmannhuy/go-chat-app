@@ -35,6 +35,7 @@ type MessageStore interface {
 type ChatStore interface {
 	SaveChat(ID string) error
 	GetChats() ([]string, error)
+	SearchQuery(input string) ([]string, error)
 }
 
 type SubscriptionStore interface {
@@ -273,4 +274,20 @@ func (s *SQLstore) SaveSubscription(username, chatID string) error {
 	}
 	tr.Commit()
 	return nil
+}
+
+func (s *SQLstore) SearchQuery(input string) ([]string, error) {
+	var results []string
+	rows, err := s.DB.Query(fmt.Sprintf(`SELECT id from chats WHERE id ILIKE '%s' LIMIT 10`, input+"%"))
+	if err != nil {
+		fmt.Println("Error during search query:", err)
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var res string
+		rows.Scan(&res)
+		results = append(results, res)
+	}
+	return results, err
 }

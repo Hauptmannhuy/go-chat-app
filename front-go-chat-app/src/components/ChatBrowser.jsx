@@ -5,6 +5,7 @@ import ChatList from "./ChatList";
 import { useNavigate } from "react-router-dom";
 import SignOutButton from "./SignOutButton";
 import { useRef } from "react";
+import Search from "./Search";
 
 function ChatBrowser(){ 
    
@@ -37,6 +38,10 @@ function ChatBrowser(){
           type: "JOIN_CHAT",
           chat_id: `${data[0]}`,
           user_id: `${data[1]}`
+        },
+        "SEARCH_QUERY": {
+          type: "SEARCH_QUERY",
+          input: `${data[0]}`
         }
       }
     
@@ -131,14 +136,17 @@ function ChatBrowser(){
     }
   }; 
 
+  function search(input) {
+    sendEnvelope("SEARCH_QUERY", [input])
+    
+  }
+
   const userAuthenticated = () => {
     if (document.cookie != '') return false;
     return true;
   }
 
-  const getUsernameCookie = () => {
-    return document.cookie.split('=')[1]
-   }
+  const getUsernameCookie = () =>  document.cookie.split('=')[1]
  
   useEffect(()=>{
     const websocket = new WebSocket("/socket/chat")
@@ -165,6 +173,11 @@ function ChatBrowser(){
     <>
 
     {userAuthenticated ? (< SignOutButton/>) : null}
+
+    <p>
+    <Search
+    searchHandler={search}/>
+    </p>
 
     <div className="chat-bar">
 

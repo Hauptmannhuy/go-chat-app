@@ -61,26 +61,33 @@ func (dbm *sqlDBwrap) openAndMigrateDB() error {
 	return nil
 }
 
-func (dbm *sqlDBwrap) handleDataBase(env OutEnvelope) error {
-	jsoned, _ := json.Marshal(env.Data)
-	fmt.Println(env.Data)
+func (dbm *sqlDBwrap) handleDataBase(env OutEnvelope) (interface{}, error) {
+	var envData interface{} = env.Data
+	jsoned, _ := json.Marshal(envData)
 	switch env.Type {
 	case "NEW_MESSAGE":
 		messageHandler := dbManager.initializeDBhandler("message")
 		err := messageHandler.CreateMessageHandler(jsoned)
-		return err
+		fmt.Println("Result ENV:", env)
+
+		return envData, err
 	case "NEW_CHAT":
 		chatHandler := dbManager.initializeDBhandler("chat")
 		err := chatHandler.CreateChatHandler(jsoned)
 
-		return err
+		return envData, err
 	case "JOIN_CHAT":
 		subHandler := dbManager.initializeDBhandler("subscription")
 		subHandler.SaveSubHandler(jsoned)
-		return nil
+		return envData, nil
+	case "SEARCH_QUERY":
+		chatHandler := dbManager.initializeDBhandler("chat")
+		envData, err := chatHandler.SearchQuery(jsoned)
+		fmt.Println("Result ENV:", env)
+		return envData, err
 	default:
 		fmt.Println("No write to database")
-		return nil
+		return envData, nil
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-chat-app/dbmanager/service"
+	"log"
 )
 
 type argError struct {
@@ -112,4 +113,18 @@ func (h *Handler) SaveSubHandler(j []byte) error {
 
 func (h *Handler) GetChatsMessages(subs []string) (interface{}, error) {
 	return h.MessageService.RetrieveChatsMessages(subs)
+}
+
+func (h *Handler) SearchQuery(p []byte) (interface{}, error) {
+	fmt.Println(string(p))
+	var data struct {
+		Input string `json:"input"`
+	}
+	err := json.Unmarshal(p, &data)
+
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+	return h.ChatService.SearchQuery(data.Input)
 }

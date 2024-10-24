@@ -40,3 +40,7 @@ func (s *Service) SaveSubscription(username, chatID string) error {
 func (s *Service) RetrieveChatsMessages(subs []string) (interface{}, error) {
 	return s.MessageStore.GetChatsMessages(subs)
 }
+
+func (s *Service) SearchQuery(input string) ([]string, error) {
+	return s.ChatStore.SearchQuery(input)
+}

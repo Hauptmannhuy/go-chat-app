@@ -95,7 +95,7 @@ func clientMessages(cl *Client) {
 			return
 		}
 		outEnv := processEnvelope(p)
-		err = dbManager.handleDataBase(outEnv)
+		outEnv.Data, err = dbManager.handleDataBase(outEnv)
 		if err != nil {
 			errorMessg := Error{err.Error()}
 			outEnv = OutEnvelope{"ERROR", errorMessg}

@@ -26,6 +26,10 @@ type JoinNotification struct {
 	UserID string `json:"user_id"`
 }
 
+type SearchQuery struct {
+	Input string `json:"input"`
+}
+
 type Error struct {
 	Message string
 }
@@ -41,6 +45,7 @@ func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chat
 
 	switch outEnv.Type {
 	case "NEW_MESSAGE":
+		fmt.Println(outEnv)
 		msg := outEnv.Data.(UserMessage)
 
 		chatID := msg.ChatID
@@ -61,6 +66,8 @@ func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chat
 		msg := outEnv.Data.(JoinNotification)
 		chat := chatList.Chats[msg.ChatID]
 		chat.AddMember(cl)
+	case "SEARCH_QUERY":
+		sendWsResponse(jsonEnv, cl, msgT)
 	case "ERROR":
 		sendWsResponse(jsonEnv, cl, msgT)
 	}
@@ -116,6 +123,15 @@ func processEnvelope(p []byte) OutEnvelope {
 			log.Fatal(err)
 		}
 		outEnv.Data = s.JoinNotification
+		return outEnv
+	case "SEARCH_QUERY":
+		var s struct {
+			SearchQuery
+		}
+		if err := json.Unmarshal(p, &s); err != nil {
+			log.Fatal(err)
+		}
+		outEnv.Data = s.SearchQuery
 		return outEnv
 	default:
 		fmt.Println("No type is matched while processing incoming envelope")
