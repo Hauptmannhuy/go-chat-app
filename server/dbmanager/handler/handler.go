@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-chat-app/dbmanager/service"
-	"log"
 )
 
 type argError struct {
@@ -115,16 +114,17 @@ func (h *Handler) GetChatsMessages(subs []string) (interface{}, error) {
 	return h.MessageService.RetrieveChatsMessages(subs)
 }
 
-func (h *Handler) SearchQuery(p []byte) (interface{}, error) {
-	fmt.Println(string(p))
-	var data struct {
-		Input string `json:"input"`
+func (h *Handler) SearchChat(input string) (interface{}, error) {
+	if input == "" {
+		return nil, &argError{"Input should not be empty"}
 	}
-	err := json.Unmarshal(p, &data)
+	return h.ChatService.SearchChat(input)
+}
 
-	if err != nil {
-		log.Println(err)
-		return nil, err
+func (h *Handler) SearchUser(input string) (interface{}, error) {
+
+	if input == "" {
+		return nil, &argError{"Input should not be empty"}
 	}
-	return h.ChatService.SearchQuery(data.Input)
+	return h.UserService.SearchUser(input)
 }

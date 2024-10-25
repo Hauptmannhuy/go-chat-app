@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import SignOutButton from "./SignOutButton";
 import { useRef } from "react";
 import Search from "./Search";
+import SearchOutput from "./SearchOutput";
 
 function ChatBrowser(){ 
    
@@ -21,6 +22,10 @@ function ChatBrowser(){
   const [chatSelected, setSelectedChat] = useState(null)
   const [creationChatInvoked, setInvokeStatus] = useState(false)
   const [creationInput, setCreationInput] = useState("")
+
+  const [searchResults, setSearchResults] = useState(null)
+
+  const [lastResponse, setLastResponse] = useState(null)
 
   const sendEnvelope = (type, data) => {
       const actions = {
@@ -79,9 +84,11 @@ function ChatBrowser(){
     })
   }
 
+  const createNewChatObject = (name, participation) => ({name: `${name}`, participation: participation})
+
   const addChatHandler = (name, participation) => {
     setChats((chats) => {
-      const newChat = {name: `${name}`, participation: participation}
+      const newChat = createNewChatObject(name, participation)
       return [...chats, newChat]
     })
   }
@@ -130,16 +137,48 @@ function ChatBrowser(){
         handleMessageLoad(response.Data)
         console.log(response)
         break;
+      case "SEARCH_QUERY":
+        console.log(response.Data)
+        setLastResponse(response.Data)
+        // handleSearchQuery(response.Data)
+        break;
+      case "ERROR":
+        console.log(response)
       default:
-        console.log(ev.data);
+        console.log(ev.data.Data);
         break;
     }
   }; 
 
-  function search(input) {
-    sendEnvelope("SEARCH_QUERY", [input])
+  function handleSearchQuery(data){
     
+    const filterChats = (data) => {
+      if (!data.chats) return []
+
+      const participatedChats = chats.filter(chat => chat.participation);
+
+      const participatedQueriedChats = participatedChats.filter((el) =>  data.chats.includes(el.name));
+      const participatingChatNames = participatedQueriedChats.map(chat => chat.name);
+
+       const newChats = data.chats
+        .filter(chatName => !participatingChatNames.includes(chatName))
+        .map(name => createNewChatObject(name, false));    
+
+      return [...newChats, ...participatedQueriedChats]
+    }
+    const fetchedChats = filterChats(data)
+    console.log(fetchedChats)
+    setSearchResults(fetchedChats)
   }
+
+  const search = (input) => {
+    if (input == ""){
+      setSearchResults([])
+      return
+    }
+    sendEnvelope("SEARCH_QUERY", [input])
+  }
+  
 
   const userAuthenticated = () => {
     if (document.cookie != '') return false;
@@ -147,6 +186,13 @@ function ChatBrowser(){
   }
 
   const getUsernameCookie = () =>  document.cookie.split('=')[1]
+
+  useEffect(() => {
+    if (lastResponse){
+      handleSearchQuery(lastResponse)
+    }
+  }, [lastResponse])
+  
  
   useEffect(()=>{
     const websocket = new WebSocket("/socket/chat")
@@ -174,10 +220,20 @@ function ChatBrowser(){
 
     {userAuthenticated ? (< SignOutButton/>) : null}
 
+    <div className="search-section">
+
     <p>
     <Search
     searchHandler={search}/>
     </p>
+
+   { searchResults ?  
+    <ChatList 
+     chats={searchResults}
+     handleSelect={setSelectedChat}
+     handleJoin={joinChat}
+     /> : null}
+    </div>
 
     <div className="chat-bar">
 

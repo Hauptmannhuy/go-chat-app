@@ -9,16 +9,8 @@ type Service struct {
 	SubscriptionStore store.SubscriptionStore
 }
 
-func (s *Service) CreateMessage(body, chatID, userID string) error {
-	return s.MessageStore.SaveMessage(body, chatID, userID)
-}
-
-func (s *Service) GetAllChats() ([]string, error) {
-	return s.ChatStore.GetChats()
-}
-
-func (s *Service) CreateChat(chatID string) error {
-	return s.ChatStore.SaveChat(chatID)
+func (s *Service) SearchUser(input string) (interface{}, error) {
+	return s.UserStore.SearchUser(input)
 }
 
 func (s *Service) CreateAccount(name, email, pass string) error {
@@ -41,6 +33,18 @@ func (s *Service) RetrieveChatsMessages(subs []string) (interface{}, error) {
 	return s.MessageStore.GetChatsMessages(subs)
 }
 
-func (s *Service) SearchQuery(input string) ([]string, error) {
-	return s.ChatStore.SearchQuery(input)
+func (s *Service) CreateMessage(body, chatID, userID string) error {
+	return s.MessageStore.SaveMessage(body, chatID, userID)
+}
+
+func (s *Service) SearchChat(input string) ([]string, error) {
+	return s.ChatStore.SearchChat(input)
+}
+
+func (s *Service) GetAllChats() ([]string, error) {
+	return s.ChatStore.GetChats()
+}
+
+func (s *Service) CreateChat(chatID string) error {
+	return s.ChatStore.SaveChat(chatID)
 }

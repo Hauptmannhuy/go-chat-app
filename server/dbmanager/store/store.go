@@ -17,6 +17,10 @@ type Message struct {
 	// CreatedAt string `json:"created_at"`
 }
 
+type UserProfileData struct {
+	Username string `json:"username"`
+}
+
 type loginUserData struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -25,6 +29,7 @@ type loginUserData struct {
 type UserStore interface {
 	SaveAccount(name, email, pass string) error
 	AuthenticateAccount(name, pass string) error
+	SearchUser(username string) (interface{}, error)
 }
 
 type MessageStore interface {
@@ -35,7 +40,7 @@ type MessageStore interface {
 type ChatStore interface {
 	SaveChat(ID string) error
 	GetChats() ([]string, error)
-	SearchQuery(input string) ([]string, error)
+	SearchChat(input string) ([]string, error)
 }
 
 type SubscriptionStore interface {
@@ -276,7 +281,7 @@ func (s *SQLstore) SaveSubscription(username, chatID string) error {
 	return nil
 }
 
-func (s *SQLstore) SearchQuery(input string) ([]string, error) {
+func (s *SQLstore) SearchChat(input string) ([]string, error) {
 	var results []string
 	rows, err := s.DB.Query(fmt.Sprintf(`SELECT id from chats WHERE id ILIKE '%s' LIMIT 10`, input+"%"))
 	if err != nil {
@@ -290,4 +295,24 @@ func (s *SQLstore) SearchQuery(input string) ([]string, error) {
 		results = append(results, res)
 	}
 	return results, err
+}
+
+func (s *SQLstore) SearchUser(input string) (interface{}, error) {
+	userMap := make(map[string]interface{})
+	query := fmt.Sprintf(`SELECT username FROM users WHERE username ILIKE '%s' LIMIT 10`, input+"%")
+	fmt.Println(query)
+	rows, err := s.DB.Query(query)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var result UserProfileData
+		fmt.Println(result)
+		rows.Scan(&result.Username)
+		userMap[result.Username] = result
+	}
+	return userMap, nil
+
 }

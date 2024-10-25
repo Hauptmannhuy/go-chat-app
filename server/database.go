@@ -74,15 +74,13 @@ func (dbm *sqlDBwrap) handleDataBase(env OutEnvelope) (interface{}, error) {
 	case "NEW_CHAT":
 		chatHandler := dbManager.initializeDBhandler("chat")
 		err := chatHandler.CreateChatHandler(jsoned)
-
 		return envData, err
 	case "JOIN_CHAT":
 		subHandler := dbManager.initializeDBhandler("subscription")
 		subHandler.SaveSubHandler(jsoned)
 		return envData, nil
 	case "SEARCH_QUERY":
-		chatHandler := dbManager.initializeDBhandler("chat")
-		envData, err := chatHandler.SearchQuery(jsoned)
+		envData, err := fetchQueryData(jsoned)
 		fmt.Println("Result ENV:", env)
 		return envData, err
 	default:
@@ -110,4 +108,31 @@ func (dbm *sqlDBwrap) initializeDBhandler(handlerDeclaration string) handler.Han
 		handler.SubscriptionService = service
 	}
 	return handler
+}
+
+func fetchQueryData(p []byte) (interface{}, error) {
+	chatHandler := dbManager.initializeDBhandler("chat")
+	userHandler := dbManager.initializeDBhandler("user")
+	var data struct {
+		Input string `json:"input"`
+	}
+	err := json.Unmarshal(p, &data)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	result := make(map[string]interface{})
+	resUsers, err := userHandler.SearchUser(data.Input)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	resChats, err := chatHandler.SearchChat(data.Input)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	result["users"] = resUsers
+	result["chats"] = resChats
+	return result, nil
 }
