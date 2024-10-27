@@ -55,13 +55,11 @@ func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chat
 			sendWsResponse(jsonEnv, cl, msgT)
 		}
 	case "NEW_CHAT":
-		for i := 0; i < len(connSockets.Connections); i++ {
-			fmt.Println(len(connSockets.Connections), "connections")
-			connCl := connSockets.Connections[i]
-			sendWsResponse(jsonEnv, connCl, msgT)
-		}
+		sendWsResponse(jsonEnv, cl, msgT)
 		msg := outEnv.Data.(Chat)
 		chats.CreateChat(msg.ID)
+		chat := chatList.Chats[msg.ID]
+		chat.AddMember(cl)
 	case "JOIN_CHAT":
 		msg := outEnv.Data.(JoinNotification)
 		chat := chatList.Chats[msg.ChatID]

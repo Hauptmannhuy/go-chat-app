@@ -160,7 +160,7 @@ func (s *SQLstore) GetChatsMessages(subs []string) (interface{}, error) {
 	}
 
 	if len(chats) == 0 {
-		return nil, &errordb.ErrorDB{"No chats to fetch"}
+		return nil, &errordb.ErrorDB{"No messages to fetch"}
 	}
 
 	return chats, nil

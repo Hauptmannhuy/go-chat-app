@@ -72,8 +72,7 @@ func (dbm *sqlDBwrap) handleDataBase(env OutEnvelope) (interface{}, error) {
 
 		return envData, err
 	case "NEW_CHAT":
-		chatHandler := dbManager.initializeDBhandler("chat")
-		err := chatHandler.CreateChatHandler(jsoned)
+		err := createNewChat(jsoned)
 		return envData, err
 	case "JOIN_CHAT":
 		subHandler := dbManager.initializeDBhandler("subscription")
@@ -135,4 +134,20 @@ func fetchQueryData(p []byte) (interface{}, error) {
 	result["users"] = resUsers
 	result["chats"] = resChats
 	return result, nil
+}
+
+func createNewChat(p []byte) error {
+	chatHandler := dbManager.initializeDBhandler("chat")
+	subHandler := dbManager.initializeDBhandler("subscription")
+	err := chatHandler.CreateChatHandler(p)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	err = subHandler.SaveSubHandler(p)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	return nil
 }

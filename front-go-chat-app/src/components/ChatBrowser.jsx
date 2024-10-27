@@ -6,7 +6,6 @@ import { useNavigate } from "react-router-dom";
 import SignOutButton from "./SignOutButton";
 import { useRef } from "react";
 import Search from "./Search";
-import SearchOutput from "./SearchOutput";
 
 function ChatBrowser(){ 
    
@@ -24,8 +23,9 @@ function ChatBrowser(){
   const [creationInput, setCreationInput] = useState("")
 
   const [searchResults, setSearchResults] = useState(null)
-
+  
   const [lastResponse, setLastResponse] = useState(null)
+
 
   const sendEnvelope = (type, data) => {
       const actions = {
@@ -37,7 +37,8 @@ function ChatBrowser(){
         },
         "NEW_CHAT": {
           type: "NEW_CHAT",
-          id: `${data[0]}`
+          chat_id: `${data[0]}`,
+          user_id: `${data[1]}`
         },
         "JOIN_CHAT": {
           type: "JOIN_CHAT",
@@ -58,21 +59,24 @@ function ChatBrowser(){
       }
     };
 
-  const createChat = (name,type = "NEW_CHAT") => {
+  const createChat = (name,type = "NEW_CHAT", user_id = getUsernameCookie()) => {
     setInvokeStatus(false)
     setCreationInput(false)
     
-    sendEnvelope(type, [name])
+    sendEnvelope(type, [name, user_id])
   };
 
   const joinChat = (name,type = "JOIN_CHAT") => {
-   const previuosChats = [...chats]
-   const newChats = previuosChats.filter(el => (el.name != name))
-   const changedChat = {name: name, participation: true}
-   newChats.push(changedChat)
-
-   sendEnvelope(type, [name, getUsernameCookie() ])
-   setChats(newChats)
+    appendNewChat(name)
+    sendEnvelope(type, [name, getUsernameCookie() ])
+  }
+  
+  const appendNewChat = (name) => {
+    const previuosChats = [...chats]
+    const newChats = previuosChats.filter(el => (el.name != name))
+    const changedChat = {name: name, participation: true}
+    newChats.push(changedChat)
+    setChats(newChats)
   }
 
   const addChatsAndMessages = (names, participation = false) => {
@@ -84,14 +88,17 @@ function ChatBrowser(){
     })
   }
 
-  const createNewChatObject = (name, participation) => ({name: `${name}`, participation: participation})
-
+  
   const addChatHandler = (name, participation) => {
     setChats((chats) => {
+      console.log(chats)
       const newChat = createNewChatObject(name, participation)
       return [...chats, newChat]
     })
   }
+
+  const createNewChatObject = (name, participation) => ({name: `${name}`, participation: participation})
+
   const addMessagesObjectHandler = (name) => {
     setMessages((messages) => {
       const newMessages = {...messages}
@@ -126,7 +133,7 @@ function ChatBrowser(){
     console.log(response.Data)
     switch (response.Type) {
       case "NEW_CHAT":
-        addChatsAndMessages(response.Data.id);
+        addChatsAndMessages(response.Data.chat_id, true);
         break;
       case "NEW_MESSAGE":
         saveLocalMessage(response.Data)
@@ -140,7 +147,6 @@ function ChatBrowser(){
       case "SEARCH_QUERY":
         console.log(response.Data)
         setLastResponse(response.Data)
-        // handleSearchQuery(response.Data)
         break;
       case "ERROR":
         console.log(response)
@@ -149,6 +155,16 @@ function ChatBrowser(){
         break;
     }
   }; 
+
+ 
+
+  const search = (input) => {
+    if (input == ""){
+      setLastResponse(null)
+      return
+    }
+    sendEnvelope("SEARCH_QUERY", [input])
+  }
 
   function handleSearchQuery(data){
     
@@ -170,15 +186,12 @@ function ChatBrowser(){
     console.log(fetchedChats)
     setSearchResults(fetchedChats)
   }
-
-  const search = (input) => {
-    if (input == ""){
-      setSearchResults([])
-      return
-    }
-    sendEnvelope("SEARCH_QUERY", [input])
-  }
   
+  useEffect(() => {
+    if (lastResponse){
+      handleSearchQuery(lastResponse)
+    }
+  }, [lastResponse])
 
   const userAuthenticated = () => {
     if (document.cookie != '') return false;
@@ -187,11 +200,6 @@ function ChatBrowser(){
 
   const getUsernameCookie = () =>  document.cookie.split('=')[1]
 
-  useEffect(() => {
-    if (lastResponse){
-      handleSearchQuery(lastResponse)
-    }
-  }, [lastResponse])
   
  
   useEffect(()=>{
@@ -210,11 +218,8 @@ function ChatBrowser(){
     return () => websocket.close()
   }, [])
 
-  
 
-  console.log("messages", messages)
 
-  
   return (
     <>
 
@@ -227,21 +232,23 @@ function ChatBrowser(){
     searchHandler={search}/>
     </p>
 
-   { searchResults ?  
+   { searchResults && lastResponse ?  
     <ChatList 
      chats={searchResults}
      handleSelect={setSelectedChat}
      handleJoin={joinChat}
-     /> : null}
+     /> : 
+     <ChatList
+      chats={chats}
+      handleSelect={setSelectedChat}
+      handleJoin={joinChat}
+      />
+   } 
     </div>
 
     <div className="chat-bar">
 
-     <ChatList 
-     chats={chats}
-     handleSelect={setSelectedChat}
-     handleJoin={joinChat}
-     />
+    
 
     <button onClick={() => setInvokeStatus(true)}>Create chat</button>
     

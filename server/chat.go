@@ -1,12 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"sync"
 )
 
 type Chat struct {
 	members []*Client
-	ID      string `json:"id"`
+	UserID  string `json:"user_id"`
+	ID      string `json:"chat_id"`
 	mutex   sync.Mutex
 }
 
@@ -30,6 +32,7 @@ func (chL *ChatList) CreateChat(chID string) {
 func (chL *ChatList) initializeRooms() {
 	dbChatHandler := dbManager.initializeDBhandler("chat")
 	list, _ := dbChatHandler.GetAllChats()
+	fmt.Println(list)
 	chL.Chats = make(map[string]*Chat)
 	for _, chID := range list {
 		chat := &Chat{

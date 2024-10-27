@@ -52,7 +52,7 @@ func (h *Handler) GetAllChats() ([]string, error) {
 
 func (h *Handler) CreateChatHandler(j []byte) error {
 	var chatObj struct {
-		ID string
+		ID string `json:"chat_id"`
 	}
 	err := json.Unmarshal(j, &chatObj)
 
