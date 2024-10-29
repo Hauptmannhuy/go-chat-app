@@ -6,13 +6,47 @@ import (
 	"log"
 )
 
+//go:generate jsonenums -type=Kind
+
+type ActionOnType interface {
+	perform(p []byte, msgT int, cl *Client)
+}
+
+type Kind int
+
+const (
+	NEW_MESSAGE Kind = iota
+	NEW_CHAT
+	SEARCH_QUERY
+	JOIN_CHAT
+	ERROR
+)
+
+var kindHandlers = map[Kind]func() ActionOnType{
+	NEW_MESSAGE:  func() ActionOnType { return &UserMessage{} },
+	NEW_CHAT:     func() ActionOnType { return &NewGroupChat{} },
+	SEARCH_QUERY: func() ActionOnType { return &SearchQuery{} },
+	JOIN_CHAT:    func() ActionOnType { return &JoinNotification{} },
+}
+
+func (k *Kind) toValue() string {
+	var keys = map[Kind]string{
+		0: "NEW_MESSAGE",
+		1: "NEW_CHAT",
+		2: "SEARCH_QUERY",
+		3: "NEW_PRIVATE_CHAT",
+		4: "JOIN_CHAT",
+	}
+	return keys[*k]
+}
+
 type OutEnvelope struct {
 	Type string
 	Data interface{}
 }
 
-type Envelope struct {
-	Type string
+type InEnvelope struct {
+	Type Kind
 }
 
 type UserMessage struct {
@@ -27,48 +61,66 @@ type JoinNotification struct {
 }
 
 type SearchQuery struct {
-	Input string `json:"input"`
+	Input         string `json:"input"`
+	UserID        string `json:"user_id"`
+	SearchResults interface{}
+}
+
+type NewGroupChat struct {
+	ID       string `json:"chat_id"`
+	UserID   string `json:"user_id"`
+	ChatType string `json:"chat_type"`
 }
 
 type Error struct {
 	Message string
 }
 
-func handleResponseEnvelope(outEnv OutEnvelope, connSockets *Hub, msgT int, chats *ChatList, cl *Client) {
-	fmt.Println(cl.index, "client index in handle response env")
+func (um *UserMessage) perform(jsonEnv []byte, msgT int, cl *Client) {
+	chatID := um.ChatID
+	chat := chatList.Chats[chatID]
+	for _, cl := range chat.members {
+		sendWsResponse(jsonEnv, cl, msgT)
+	}
+}
+
+func (ngc *NewGroupChat) perform(jsonEnv []byte, msgT int, cl *Client) {
+	sendWsResponse(jsonEnv, cl, msgT)
+	chatList.CreateChat(ngc.ID)
+	chat := chatList.Chats[ngc.ID]
+	chat.AddMember(cl)
+}
+
+func (sc *SearchQuery) perform(jsonEnv []byte, msgT int, cl *Client) {
+	sendWsResponse(jsonEnv, cl, msgT)
+}
+
+func (jn *JoinNotification) perform(jsonEnv []byte, msgT int, cl *Client) {
+	chat := chatList.Chats[jn.ChatID]
+	chat.AddMember(cl)
+}
+
+func (e *Error) perform(jsonEnv []byte, msgT int, cl *Client) {
+	sendWsResponse(jsonEnv, cl, msgT)
+}
+
+func HandleWriteToWebSocket(outEnv OutEnvelope, msgT int, cl *Client) {
 	jsonEnv, err := json.Marshal(outEnv)
+	fmt.Println(string(jsonEnv))
+	fmt.Println(cl.index, "client index in handle response env")
 	fmt.Println("slice of sockets:", connSockets.Connections)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	switch outEnv.Type {
-	case "NEW_MESSAGE":
-		fmt.Println(outEnv)
-		msg := outEnv.Data.(UserMessage)
-
-		chatID := msg.ChatID
-		chat := chatList.Chats[chatID]
-
-		for _, cl := range chat.members {
-			sendWsResponse(jsonEnv, cl, msgT)
-		}
-	case "NEW_CHAT":
-		sendWsResponse(jsonEnv, cl, msgT)
-		msg := outEnv.Data.(Chat)
-		chats.CreateChat(msg.ID)
-		chat := chatList.Chats[msg.ID]
-		chat.AddMember(cl)
-	case "JOIN_CHAT":
-		msg := outEnv.Data.(JoinNotification)
-		chat := chatList.Chats[msg.ChatID]
-		chat.AddMember(cl)
-	case "SEARCH_QUERY":
-		sendWsResponse(jsonEnv, cl, msgT)
-	case "ERROR":
-		sendWsResponse(jsonEnv, cl, msgT)
+	if errorMessage, ok := outEnv.Data.(Error); ok {
+		outEnv.Data = ActionOnType(&errorMessage)
 	}
+
+	var action ActionOnType
+	action = outEnv.Data.(ActionOnType)
+	action.perform(jsonEnv, msgT, cl)
 
 }
 
@@ -82,57 +134,22 @@ func sendWsResponse(p []byte, cl *Client, msgT int) {
 }
 
 func processEnvelope(p []byte) OutEnvelope {
-	var outEnv OutEnvelope
-	var env Envelope
+	fmt.Println("raw json:", string(p))
+	env := InEnvelope{}
 
-	fmt.Println("Raw JSON", string(p))
-	if err := json.Unmarshal(p, &env); err != nil {
+	err := json.Unmarshal(p, &env)
+	if err != nil {
 		log.Fatal(err)
 	}
-	outEnv.Type = env.Type
-	switch env.Type {
-	case "NEW_MESSAGE":
-		var s struct {
-			Envelope
-			UserMessage
-		}
-		if err := json.Unmarshal(p, &s); err != nil {
-			log.Fatal(err)
-		}
-		outEnv.Data = s.UserMessage
-		return outEnv
-	case "NEW_CHAT":
-		var s struct {
-			Envelope
-			Chat
-		}
-		if err := json.Unmarshal(p, &s); err != nil {
-			log.Fatal(err)
-		}
-		outEnv.Data = s.Chat
-		fmt.Println("res", outEnv.Data)
-		return outEnv
-	case "JOIN_CHAT":
-		var s struct {
-			Envelope
-			JoinNotification
-		}
-		if err := json.Unmarshal(p, &s); err != nil {
-			log.Fatal(err)
-		}
-		outEnv.Data = s.JoinNotification
-		return outEnv
-	case "SEARCH_QUERY":
-		var s struct {
-			SearchQuery
-		}
-		if err := json.Unmarshal(p, &s); err != nil {
-			log.Fatal(err)
-		}
-		outEnv.Data = s.SearchQuery
-		return outEnv
-	default:
-		fmt.Println("No type is matched while processing incoming envelope")
-		return outEnv
+
+	msg := kindHandlers[env.Type]()
+	err = json.Unmarshal(p, msg)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return OutEnvelope{
+		Type: env.Type.toValue(),
+		Data: msg,
 	}
 }
