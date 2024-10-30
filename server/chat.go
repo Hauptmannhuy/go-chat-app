@@ -7,9 +7,16 @@ import (
 
 type Chat struct {
 	members []*Client
-	UserID  string `json:"user_id"`
 	ID      string `json:"chat_id"`
 	mutex   sync.Mutex
+}
+
+type PrivateChat struct {
+	members      []*Client
+	mutex        sync.Mutex
+	ID           string `json:"chat_id"`
+	FirstUserID  string `json:"user_a_id"`
+	SecondUserID string `json:"user_b_id"`
 }
 
 type ChatList struct {

@@ -61,33 +61,6 @@ func (dbm *sqlDBwrap) openAndMigrateDB() error {
 	return nil
 }
 
-func (dbm *sqlDBwrap) handleDataBase(env OutEnvelope) (interface{}, error) {
-	var envData interface{} = env.Data
-	jsoned, _ := json.Marshal(envData)
-	switch env.Type {
-	case "NEW_MESSAGE":
-		messageHandler := dbManager.initializeDBhandler("message")
-		err := messageHandler.CreateMessageHandler(jsoned)
-		fmt.Println("Result ENV:", env)
-
-		return envData, err
-	case "NEW_CHAT":
-		err := createNewChat(jsoned)
-		return envData, err
-	case "JOIN_CHAT":
-		subHandler := dbManager.initializeDBhandler("subscription")
-		subHandler.SaveSubHandler(jsoned)
-		return envData, nil
-	case "SEARCH_QUERY":
-		envData, err := fetchQueryData(jsoned)
-		fmt.Println("Result ENV:", env)
-		return envData, err
-	default:
-		fmt.Println("No write to database")
-		return envData, nil
-	}
-}
-
 func (dbm *sqlDBwrap) initializeDBhandler(handlerDeclaration string) handler.Handler {
 	dbStore := store.SQLstore{DB: dbManager.db}
 	service := service.Service{}
@@ -110,10 +83,12 @@ func (dbm *sqlDBwrap) initializeDBhandler(handlerDeclaration string) handler.Han
 }
 
 func fetchQueryData(p []byte) (interface{}, error) {
+	fmt.Println(string(p))
 	chatHandler := dbManager.initializeDBhandler("chat")
 	userHandler := dbManager.initializeDBhandler("user")
 	var data struct {
-		Input string `json:"input"`
+		Input  string `json:"input"`
+		UserID string `json:"user_id"`
 	}
 	err := json.Unmarshal(p, &data)
 	if err != nil {
@@ -126,7 +101,7 @@ func fetchQueryData(p []byte) (interface{}, error) {
 		fmt.Println(err)
 		return nil, err
 	}
-	resChats, err := chatHandler.SearchChat(data.Input)
+	resChats, err := chatHandler.SearchChat(data.Input, data.UserID)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
@@ -136,7 +111,7 @@ func fetchQueryData(p []byte) (interface{}, error) {
 	return result, nil
 }
 
-func createNewChat(p []byte) error {
+func createNewGroupChat(p []byte) error {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	subHandler := dbManager.initializeDBhandler("subscription")
 	err := chatHandler.CreateChatHandler(p)

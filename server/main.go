@@ -57,7 +57,7 @@ func initializeWSconn(w http.ResponseWriter, r *http.Request) *Client {
 	}
 	usernameCookie, _ := r.Cookie("username")
 	subHandler := dbManager.initializeDBhandler("subscription")
-	subs, err := subHandler.LoadUserSubscriptionsHandler(usernameCookie.Value)
+	subs, err := subHandler.LoadSubscriptions(usernameCookie.Value)
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -95,13 +95,13 @@ func clientMessages(cl *Client) {
 			return
 		}
 		outEnv := processEnvelope(p)
-		outEnv.Data, err = dbManager.handleDataBase(outEnv)
+		outEnv.Data, err = dbManager.handleDatabase(outEnv)
 		if err != nil {
 			errorMessg := Error{err.Error()}
 			outEnv = OutEnvelope{"ERROR", errorMessg}
 			fmt.Println(err)
 		}
-		handleResponseEnvelope(outEnv, &connSockets, messageType, &chatList, cl)
+		HandleWriteToWebSocket(outEnv, messageType, cl)
 
 	}
 }
@@ -136,9 +136,15 @@ func (h *Hub) AddConection(c *Client) {
 }
 
 func (cl *Client) sendSubscriptions() {
+	dbChatHandler := dbManager.initializeDBhandler("chat")
+	data, err := dbChatHandler.LoadUserSubscribedChats(cl.username)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	var env OutEnvelope
 	env.Type = "LOAD_SUBS"
-	env.Data = cl.subs
+	env.Data = data
 
 	j, err := json.Marshal(env)
 	if err != nil {

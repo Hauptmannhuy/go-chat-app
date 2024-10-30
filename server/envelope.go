@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 )
 
 //go:generate jsonenums -type=Kind
 
 type ActionOnType interface {
 	perform(p []byte, msgT int, cl *Client)
+	save(p []byte) (interface{}, error)
 }
 
 type Kind int
@@ -19,7 +21,6 @@ const (
 	NEW_CHAT
 	SEARCH_QUERY
 	JOIN_CHAT
-	ERROR
 )
 
 var kindHandlers = map[Kind]func() ActionOnType{
@@ -100,8 +101,30 @@ func (jn *JoinNotification) perform(jsonEnv []byte, msgT int, cl *Client) {
 	chat.AddMember(cl)
 }
 
-func (e *Error) perform(jsonEnv []byte, msgT int, cl *Client) {
-	sendWsResponse(jsonEnv, cl, msgT)
+func (m *UserMessage) save(json []byte) (interface{}, error) {
+	messageHandler := dbManager.initializeDBhandler("message")
+	err := messageHandler.CreateMessageHandler(json)
+	fmt.Println("Result ENV:", m)
+
+	return m, err
+}
+
+func (nc *NewGroupChat) save(json []byte) (interface{}, error) {
+	err := createNewGroupChat(json)
+	return nc, err
+}
+
+func (jn *JoinNotification) save(json []byte) (interface{}, error) {
+	subHandler := dbManager.initializeDBhandler("subscription")
+	subHandler.SaveSubHandler(json)
+	return jn, nil
+}
+
+func (sq *SearchQuery) save(json []byte) (interface{}, error) {
+	res, err := fetchQueryData(json)
+	sq.SearchResults = res
+	fmt.Println("Result ENV:", sq)
+	return sq, err
 }
 
 func HandleWriteToWebSocket(outEnv OutEnvelope, msgT int, cl *Client) {
@@ -115,11 +138,11 @@ func HandleWriteToWebSocket(outEnv OutEnvelope, msgT int, cl *Client) {
 	}
 
 	if errorMessage, ok := outEnv.Data.(Error); ok {
-		outEnv.Data = ActionOnType(&errorMessage)
+		errorMessage.handleError(jsonEnv, cl, msgT)
+		return
 	}
 
-	var action ActionOnType
-	action = outEnv.Data.(ActionOnType)
+	action := outEnv.Data.(ActionOnType)
 	action.perform(jsonEnv, msgT, cl)
 
 }
@@ -136,13 +159,26 @@ func sendWsResponse(p []byte, cl *Client, msgT int) {
 func processEnvelope(p []byte) OutEnvelope {
 	fmt.Println("raw json:", string(p))
 	env := InEnvelope{}
-
 	err := json.Unmarshal(p, &env)
 	if err != nil {
-		log.Fatal(err)
+		ok := isTypeUnknown(err.Error())
+		if ok {
+			msg := Error{
+				Message: err.Error(),
+			}
+			return OutEnvelope{
+				Type: "UNKNOWN_TYPE",
+				Data: msg,
+			}
+
+		} else {
+			log.Fatal(err)
+		}
+
 	}
 
 	msg := kindHandlers[env.Type]()
+
 	err = json.Unmarshal(p, msg)
 	if err != nil {
 		log.Fatal(err)
@@ -152,4 +188,27 @@ func processEnvelope(p []byte) OutEnvelope {
 		Type: env.Type.toValue(),
 		Data: msg,
 	}
+}
+
+func (dbm *sqlDBwrap) handleDatabase(env OutEnvelope) (interface{}, error) {
+	jsoned, _ := json.Marshal(env.Data)
+	if action, ok := env.Data.(ActionOnType); ok {
+		res, err := action.save(jsoned)
+		return res, err
+	} else {
+		fmt.Println("No write to database")
+		return env.Data, nil
+	}
+}
+
+func (e *Error) handleError(p []byte, cl *Client, msgT int) {
+	sendWsResponse(p, cl, msgT)
+}
+
+func isTypeUnknown(err string) bool {
+	decomposed := strings.Split(err, " ")
+	if decomposed[0] == "invalid" && decomposed[1] == "Kind" {
+		return true
+	}
+	return false
 }
