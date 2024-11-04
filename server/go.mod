@@ -12,7 +12,9 @@ require (
 )
 
 require (
+	github.com/campoy/jsonenums v0.0.0-20201009151607-0f0230183423 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
+	golang.org/x/tools v0.24.0 // indirect
 )

@@ -9,17 +9,19 @@ import (
 
 var (
 	_KindNameToValue = map[string]Kind{
-		"NEW_MESSAGE":  NEW_MESSAGE,
-		"NEW_CHAT":     NEW_CHAT,
-		"SEARCH_QUERY": SEARCH_QUERY,
-		"JOIN_CHAT":    JOIN_CHAT,
+		"NEW_MESSAGE":      NEW_MESSAGE,
+		"NEW_CHAT":         NEW_CHAT,
+		"SEARCH_QUERY":     SEARCH_QUERY,
+		"NEW_PRIVATE_CHAT": NEW_PRIVATE_CHAT,
+		"JOIN_CHAT":        JOIN_CHAT,
 	}
 
 	_KindValueToName = map[Kind]string{
-		NEW_MESSAGE:  "NEW_MESSAGE",
-		NEW_CHAT:     "NEW_CHAT",
-		SEARCH_QUERY: "SEARCH_QUERY",
-		JOIN_CHAT:    "JOIN_CHAT",
+		NEW_MESSAGE:      "NEW_MESSAGE",
+		NEW_CHAT:         "NEW_CHAT",
+		SEARCH_QUERY:     "SEARCH_QUERY",
+		NEW_PRIVATE_CHAT: "NEW_PRIVATE_CHAT",
+		JOIN_CHAT:        "JOIN_CHAT",
 	}
 )
 
@@ -27,10 +29,11 @@ func init() {
 	var v Kind
 	if _, ok := interface{}(v).(fmt.Stringer); ok {
 		_KindNameToValue = map[string]Kind{
-			interface{}(NEW_MESSAGE).(fmt.Stringer).String():  NEW_MESSAGE,
-			interface{}(NEW_CHAT).(fmt.Stringer).String():     NEW_CHAT,
-			interface{}(SEARCH_QUERY).(fmt.Stringer).String(): SEARCH_QUERY,
-			interface{}(JOIN_CHAT).(fmt.Stringer).String():    JOIN_CHAT,
+			interface{}(NEW_MESSAGE).(fmt.Stringer).String():      NEW_MESSAGE,
+			interface{}(NEW_CHAT).(fmt.Stringer).String():         NEW_CHAT,
+			interface{}(SEARCH_QUERY).(fmt.Stringer).String():     SEARCH_QUERY,
+			interface{}(NEW_PRIVATE_CHAT).(fmt.Stringer).String(): NEW_PRIVATE_CHAT,
+			interface{}(JOIN_CHAT).(fmt.Stringer).String():        JOIN_CHAT,
 		}
 	}
 }

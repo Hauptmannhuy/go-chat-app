@@ -41,7 +41,8 @@ func (am AuthorizationMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	if !verifyToken(cookie) {
+	ok := verifyToken(cookie)
+	if !ok {
 		http.Redirect(w, req, "/sign_up", http.StatusSeeOther)
 		return
 	}

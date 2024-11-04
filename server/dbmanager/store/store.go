@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"go-chat-app/dbmanager/errordb"
+	"log"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
 	"golang.org/x/crypto/bcrypt"
@@ -19,16 +20,20 @@ type Message struct {
 
 type UserProfileData struct {
 	Username string `json:"username"`
+	ID       string `json:"id"`
 }
 
 type loginUserData struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	ID       string `json:"id"`
 }
 
+type SearchResults []interface{}
+
 type UserStore interface {
-	SaveAccount(name, email, pass string) error
-	AuthenticateAccount(name, pass string) error
+	SaveAccount(name, email, pass string) (string, error)
+	AuthenticateAccount(name, pass string) (string, error)
 	SearchUser(username string) (interface{}, error)
 }
 
@@ -38,9 +43,11 @@ type MessageStore interface {
 }
 
 type ChatStore interface {
-	SaveChat(ID string) error
+	LoadSubscribedChats(username string) ([]interface{}, error)
+	SaveChat(id, chat_type string) error
+	SavePrivateChat(u1id, u2id string) (string, error)
 	GetChats() ([]string, error)
-	SearchChat(input string) ([]string, error)
+	SearchChat(input, userID string) ([]interface{}, error)
 }
 
 type SubscriptionStore interface {
@@ -53,7 +60,7 @@ type SQLstore struct {
 }
 
 func (s *SQLstore) GetChats() ([]string, error) {
-	rows, err := s.DB.Query(`SELECT id FROM chats`)
+	rows, err := s.DB.Query(`SELECT chat_id FROM chats`)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
@@ -70,15 +77,16 @@ func (s *SQLstore) GetChats() ([]string, error) {
 	return res, nil
 }
 
-func (s *SQLstore) SaveChat(ID string) error {
+func (s *SQLstore) SaveChat(id, chat_type string) error {
 	tr, _ := s.DB.Begin()
 
 	_, err := s.DB.Exec(`
-		INSERT INTO chats (ID)
-			VALUES ($1)
-	`, ID)
+		INSERT INTO chats (chat_id, chat_type)
+			VALUES ($1, $2)
+	`, id, chat_type)
 
 	if err != nil {
+		fmt.Println(err)
 		err = errordb.ParseError(err.Error())
 		tr.Rollback()
 		return err
@@ -166,72 +174,81 @@ func (s *SQLstore) GetChatsMessages(subs []string) (interface{}, error) {
 	return chats, nil
 }
 
-func (s *SQLstore) AuthenticateAccount(name, pass string) error {
-
-	tr, _ := s.DB.Begin()
+func (s *SQLstore) AuthenticateAccount(name, pass string) (string, error) {
 
 	var data loginUserData
-	row := tr.QueryRow(
+	row := s.DB.QueryRow(
 		`
-	SELECT username, password FROM users
+	SELECT id, username, password FROM users
 	WHERE username = $1
 	`, name)
 
 	fmt.Println(row)
-	err := row.Scan(&data.Username, &data.Password)
+	err := row.Scan(&data.ID, &data.Username, &data.Password)
 	if err != nil {
 		fmt.Println(err)
 		err = errordb.ParseError(err.Error())
-		return err
+		return "", err
 	}
-	fmt.Println(data)
+
 	passValid, err := authenticatePass([]byte(data.Password), []byte(pass))
 
 	if passValid {
-		tr.Commit()
-		return nil
+		return data.ID, nil
 	} else {
 		err = errordb.ParseError(err.Error())
-		return err
+		return "", err
 	}
 }
 
-func (s *SQLstore) SaveAccount(name, email, pass string) error {
-
+func (s *SQLstore) SaveAccount(name, email, pass string) (string, error) {
+	var id string
 	encryptedPass, err := encryptPassword(pass)
 	if err != nil {
 		fmt.Println((err))
-		return err
+		return "", err
 	}
 
 	tr, err := s.DB.Begin()
 
 	if err != nil {
 		fmt.Println(err)
-		return err
+		return "", err
 	}
 
-	_, err = tr.Exec(`
+	res, err := tr.Exec(`
 		INSERT INTO users (username, email, password) VALUES ($1, $2, $3)
 	`, name, email, encryptedPass)
+	fmt.Println("result reg:", res)
 
 	if err != nil {
 		fmt.Println(err)
 		err = errordb.ParseError(err.Error())
 		tr.Rollback()
-		return err
-	}
-	tr.Commit()
-	return nil
-}
-
-func encryptPassword(pass string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
-	if err != nil {
-		fmt.Println(err)
 		return "", err
 	}
-	return string(hash), err
+	tr.Commit()
+
+	if err != nil {
+		log.Fatal(err)
+		return "", err
+	}
+	row := s.DB.QueryRow(`
+		SELECT last_value from users_id_seq
+	`)
+	row.Scan(&id)
+	fmt.Println("LAST REGISTERED ID:", id)
+	return id, nil
+}
+
+func encryptPassword(pass string) ([]byte, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
+	fmt.Println("registered pass", hash)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	return hash, err
 }
 
 func authenticatePass(hashedPass, pass []byte) (bool, error) {
@@ -281,26 +298,38 @@ func (s *SQLstore) SaveSubscription(username, chatID string) error {
 	return nil
 }
 
-func (s *SQLstore) SearchChat(input string) ([]string, error) {
-	var results []string
-	rows, err := s.DB.Query(fmt.Sprintf(`SELECT id from chats WHERE id ILIKE '%s' LIMIT 10`, input+"%"))
+func (s *SQLstore) SearchChat(input, userID string) ([]interface{}, error) {
+
+	var results []interface{}
+	query := fmt.Sprintf(`
+		SELECT chat_id, chat_type
+		FROM chats
+		WHERE chat_id NOT IN (SELECT chat_id FROM subscriptions WHERE username = '%s')
+		AND chat_type = 'group' AND chat_id ILIKE '%s'
+		LIMIT 25
+	`, userID, input+"%")
+	fmt.Println(query)
+	rows, err := s.DB.Query(query)
 	if err != nil {
 		fmt.Println("Error during search query:", err)
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var res string
-		rows.Scan(&res)
-		results = append(results, res)
+		var data struct {
+			Type string `json:"chat_type"`
+			ID   string `json:"chat_id"`
+		}
+		rows.Scan(&data.ID, &data.Type)
+		fmt.Println(data)
+		results = append(results, data)
 	}
 	return results, err
 }
 
 func (s *SQLstore) SearchUser(input string) (interface{}, error) {
 	userMap := make(map[string]interface{})
-	query := fmt.Sprintf(`SELECT username FROM users WHERE username ILIKE '%s' LIMIT 10`, input+"%")
-	fmt.Println(query)
+	query := fmt.Sprintf(`SELECT username, id FROM users WHERE username ILIKE '%s' LIMIT 10`, input+"%")
 	rows, err := s.DB.Query(query)
 	if err != nil {
 		fmt.Println(err)
@@ -310,9 +339,72 @@ func (s *SQLstore) SearchUser(input string) (interface{}, error) {
 	for rows.Next() {
 		var result UserProfileData
 		fmt.Println(result)
-		rows.Scan(&result.Username)
+		rows.Scan(&result.Username, &result.ID)
 		userMap[result.Username] = result
 	}
 	return userMap, nil
 
+}
+
+func (s *SQLstore) LoadSubscribedChats(username string) ([]interface{}, error) {
+
+	var res SearchResults
+
+	tr, _ := s.DB.Begin()
+
+	rows, err := tr.Query(`
+	SELECT c.chat_id, c.chat_type FROM chats AS c
+	JOIN subscriptions AS s
+	ON s.chat_id = c.chat_id
+	WHERE s.username = $1
+	`, username)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	for rows.Next() {
+		var data struct {
+			ChatID   string `json:"chat_id"`
+			ChatType string `json:"chat_type"`
+		}
+		rows.Scan(&data.ChatID, &data.ChatType)
+		res = append(res, data)
+	}
+	fmt.Println("Subs:", res)
+	return res, nil
+
+}
+
+func (s *SQLstore) SavePrivateChat(user1id, user2id string) (string, error) {
+	user1name := s.retrieveUsername(user1id)
+	user2name := s.retrieveUsername(user2id)
+	fmt.Println("input:", user1id, user2id, user1name, user2name)
+	chatID := user1name + "_" + user2name
+	tr, _ := s.DB.Begin()
+	query := `
+		INSERT INTO private_chats (user1_id, user2_id, chat_id) 
+		VALUES ($1, $2, $3)
+	`
+	_, err := tr.Exec(query, user1id, user2id, chatID)
+	if err != nil {
+		fmt.Println(err)
+		tr.Rollback()
+		return "", err
+	}
+	tr.Commit()
+	return chatID, nil
+}
+
+func (s *SQLstore) retrieveUsername(id string) string {
+	var username string
+	query := `
+		SELECT username FROM users
+		WHERE $1 = id
+	`
+	row := s.DB.QueryRow(query, id)
+	err := row.Scan(&username)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return username
 }

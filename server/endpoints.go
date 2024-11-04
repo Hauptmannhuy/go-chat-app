@@ -30,15 +30,15 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 
 	userHandler := dbManager.initializeDBhandler("user")
 
-	err = userHandler.CreateUserHandler(message.Username, message.Email, message.Password)
-
+	id, err := userHandler.CreateUserHandler(message.Username, message.Email, message.Password)
+	fmt.Println(id)
 	if err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	s, err := generateToken()
+	s, err := generateToken(id)
 
 	if err != nil {
 		fmt.Println(err)
@@ -70,14 +70,15 @@ func signInHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 
-	err = userHandler.LoginUserHandler(message.Username, message.Password)
+	id, err := userHandler.LoginUserHandler(message.Username, message.Password)
+	fmt.Println(id)
 	if err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(fmt.Sprintf(`"%s"`, err))
 		return
 	} else {
-		token, _ := generateToken()
+		token, _ := generateToken(id)
 		setAuthCookies(w, token, message.Username)
 		w.WriteHeader(http.StatusOK)
 	}
@@ -106,7 +107,7 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 	newClient.sendSubscriptions()
 	newClient.sendMessageHistory()
 	chatList.addClientToSubRooms(newClient)
-	connSockets.AddConection(newClient)
+	connSockets.AddHubMember(newClient)
 	newClient.socket.SetCloseHandler(func(code int, text string) error {
 		newClient.CloseConnection()
 		return nil

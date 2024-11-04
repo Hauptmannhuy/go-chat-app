@@ -30,6 +30,7 @@ func main() {
 	}
 
 	chatList.initializeRooms()
+	connSockets.initialize()
 	err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler(AuthHandler{}))
 
 	if err != nil {
@@ -38,7 +39,7 @@ func main() {
 }
 
 type Client struct {
-	index     int
+	index     string
 	username  string
 	socket    *websocket.Conn
 	connected bool
@@ -56,6 +57,8 @@ func initializeWSconn(w http.ResponseWriter, r *http.Request) *Client {
 
 	}
 	usernameCookie, _ := r.Cookie("username")
+	token, _ := r.Cookie("token")
+	fmt.Println(r.Cookies())
 	subHandler := dbManager.initializeDBhandler("subscription")
 	subs, err := subHandler.LoadSubscriptions(usernameCookie.Value)
 	if err != nil {
@@ -69,6 +72,7 @@ func initializeWSconn(w http.ResponseWriter, r *http.Request) *Client {
 		socket:    conn,
 		mutex:     sync.Mutex{},
 		subs:      subs,
+		index:     fetchUserID(token.Value),
 	}
 }
 
@@ -107,7 +111,7 @@ func clientMessages(cl *Client) {
 }
 
 type Hub struct {
-	Connections []*Client
+	Connections map[string]*Client
 	Mutex       sync.Mutex
 }
 
@@ -117,21 +121,15 @@ func (hub *Hub) removeClient(cl *Client) {
 	hub.Mutex.Lock()
 	defer hub.Mutex.Unlock()
 	fmt.Println("removing client..")
-	for i := range hub.Connections {
-		fmt.Println(i)
-		if cl.socket == hub.Connections[i].socket {
-			fmt.Println("Removed")
-			hub.Connections = append(hub.Connections[:i], hub.Connections[i+1:]...)
-			return
-		}
-	}
+	delete(hub.Connections, cl.username)
+
 }
 
-func (h *Hub) AddConection(c *Client) {
-	fmt.Println("connected sockets:", h.Connections)
+func (h *Hub) AddHubMember(c *Client) {
+	fmt.Println("connected clients:", h.Connections)
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
-	h.Connections = append(h.Connections, c)
+	h.Connections[c.username] = c
 
 }
 
@@ -171,4 +169,8 @@ func (cl *Client) sendMessageHistory() {
 		return
 	}
 	sendWsResponse(json, cl, websocket.TextMessage)
+}
+
+func (h *Hub) initialize() {
+	h.Connections = make(map[string]*Client)
 }

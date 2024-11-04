@@ -13,11 +13,11 @@ func (s *Service) SearchUser(input string) (interface{}, error) {
 	return s.UserStore.SearchUser(input)
 }
 
-func (s *Service) CreateAccount(name, email, pass string) error {
+func (s *Service) CreateAccount(name, email, pass string) (string, error) {
 	return s.UserStore.SaveAccount(name, email, pass)
 }
 
-func (s *Service) LoginUser(name, pass string) error {
+func (s *Service) LoginUser(name, pass string) (string, error) {
 	return s.UserStore.AuthenticateAccount(name, pass)
 }
 
@@ -37,14 +37,22 @@ func (s *Service) CreateMessage(body, chatID, userID string) error {
 	return s.MessageStore.SaveMessage(body, chatID, userID)
 }
 
-func (s *Service) SearchChat(input string) ([]string, error) {
-	return s.ChatStore.SearchChat(input)
+func (s *Service) SearchChat(input, userID string) ([]interface{}, error) {
+	return s.ChatStore.SearchChat(input, userID)
 }
 
 func (s *Service) GetAllChats() ([]string, error) {
 	return s.ChatStore.GetChats()
 }
 
-func (s *Service) CreateChat(chatID string) error {
-	return s.ChatStore.SaveChat(chatID)
+func (s *Service) CreateChat(chatID, chat_type string) error {
+	return s.ChatStore.SaveChat(chatID, chat_type)
+}
+
+func (s *Service) LoadSubscribedChats(username string) ([]interface{}, error) {
+	return s.ChatStore.LoadSubscribedChats(username)
+}
+
+func (s *Service) CreatePrivateChat(user1id, user2id string) (string, error) {
+	return s.ChatStore.SavePrivateChat(user1id, user2id)
 }
