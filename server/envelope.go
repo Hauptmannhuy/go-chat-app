@@ -11,7 +11,7 @@ import (
 
 type ActionOnType interface {
 	perform(p []byte, msgT int, cl *Client)
-	save(p []byte) (interface{}, error)
+	save() (interface{}, error)
 }
 
 type Kind int
@@ -24,12 +24,13 @@ const (
 	JOIN_CHAT
 )
 
-var kindHandlers = map[Kind]func() ActionOnType{
-	NEW_MESSAGE:      func() ActionOnType { return &UserMessage{} },
-	NEW_CHAT:         func() ActionOnType { return &NewGroupChat{} },
-	SEARCH_QUERY:     func() ActionOnType { return &SearchQuery{} },
-	NEW_PRIVATE_CHAT: func() ActionOnType { return &NewPrivateChat{} },
-	JOIN_CHAT:        func() ActionOnType { return &Subscription{} },
+var kindHandlers = map[Kind]func(cl *Client) ActionOnType{
+
+	NEW_MESSAGE:      func(cl *Client) ActionOnType { return &UserMessage{UserID: cl.index} },
+	NEW_CHAT:         func(cl *Client) ActionOnType { return &NewGroupChat{CreatorID: cl.index} },
+	SEARCH_QUERY:     func(cl *Client) ActionOnType { return &SearchQuery{UserID: cl.index} },
+	NEW_PRIVATE_CHAT: func(cl *Client) ActionOnType { return &NewPrivateChat{InitiatorID: cl.index} },
+	JOIN_CHAT:        func(cl *Client) ActionOnType { return &Subscription{UserID: cl.index} },
 }
 
 func (k *Kind) toValue() string {
@@ -53,9 +54,9 @@ type InEnvelope struct {
 }
 
 type UserMessage struct {
-	Body   string `json:"body"`
-	ChatID string `json:"chat_id"`
-	UserID string `json:"user_id"`
+	Body     string `json:"body"`
+	ChatName string `json:"chat_name"`
+	UserID   string `json:"user_id"`
 }
 
 type Subscription struct {
@@ -70,9 +71,8 @@ type SearchQuery struct {
 }
 
 type NewGroupChat struct {
-	ID       string `json:"chat_id"`
-	UserID   string `json:"user_id"`
-	ChatType string `json:"chat_type"`
+	Name      string `json:"chat_name"`
+	CreatorID string `json:"creator_id"`
 }
 
 type NewPrivateChat struct {
@@ -89,7 +89,7 @@ type Error struct {
 }
 
 func (um *UserMessage) perform(jsonEnv []byte, msgT int, cl *Client) {
-	chatID := um.ChatID
+	chatID := um.ChatName
 	chat := chatList.Chats[chatID]
 	for _, cl := range chat.members {
 		sendWsResponse(jsonEnv, cl, msgT)
@@ -98,8 +98,8 @@ func (um *UserMessage) perform(jsonEnv []byte, msgT int, cl *Client) {
 
 func (ngc *NewGroupChat) perform(jsonEnv []byte, msgT int, cl *Client) {
 	sendWsResponse(jsonEnv, cl, msgT)
-	chatList.CreateChat(ngc.ID)
-	chat := chatList.Chats[ngc.ID]
+	chatList.CreateChat(ngc.Name)
+	chat := chatList.Chats[ngc.Name]
 	chat.AddMember(cl)
 }
 
@@ -120,72 +120,83 @@ func (newPrCh *NewPrivateChat) perform(jsonEnv []byte, msgT int, cl *Client) {
 	sendWsResponse(jsonEnv, cl, msgT)
 }
 
-func (m *UserMessage) save(json []byte) (interface{}, error) {
+func (m *UserMessage) save() (interface{}, error) {
 	messageHandler := dbManager.initializeDBhandler("message")
-	err := messageHandler.CreateMessageHandler(json)
+	err := messageHandler.CreateMessageHandler(m.Body, m.ChatName, m.UserID)
 	fmt.Println("Result ENV:", m)
 
 	return m, err
 }
 
-func (nc *NewGroupChat) save(json []byte) (interface{}, error) {
-	err := createNewGroupChat(json)
+func (nc *NewGroupChat) save() (interface{}, error) {
+	chatHandler := dbManager.initializeDBhandler("chat")
+	subHandler := dbManager.initializeDBhandler("subscription")
+	chatName, err := chatHandler.CreateChatHandler(nc.Name, nc.CreatorID)
+
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	err = subHandler.SaveSubHandler(nc.CreatorID, chatName)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
 	return nc, err
 }
 
-func (jn *Subscription) save(json []byte) (interface{}, error) {
+func (sub *Subscription) save() (interface{}, error) {
 	subHandler := dbManager.initializeDBhandler("subscription")
-	subHandler.SaveSubHandler(json)
-	return jn, nil
+	subHandler.SaveSubHandler(sub.UserID, sub.ChatID)
+	return sub, nil
 }
 
-func (sq *SearchQuery) save(json []byte) (interface{}, error) {
-	res, err := fetchQueryData(json)
-	sq.SearchResults = res
-	fmt.Println("Result ENV:", sq)
-	return sq, err
-}
-
-func (newPrCh *NewPrivateChat) save(p []byte) (interface{}, error) {
-	subHandler := dbManager.initializeDBhandler("subscription")
+func (sq *SearchQuery) save() (interface{}, error) {
 	chatHandler := dbManager.initializeDBhandler("chat")
-	messageHandler := dbManager.initializeDBhandler("message")
-	id := connSockets.Connections[newPrCh.Username].index
-	newPrCh.InitiatorID = id
-	newJson, err := json.Marshal(newPrCh)
-	if err != nil {
-		log.Fatal(err)
-	}
-	chatID, err := chatHandler.CreatePrivateChatHandler(newJson)
-	if err != nil {
-		log.Fatal(err)
-	}
-	subData1 := Subscription{
-		UserID: id,
-		ChatID: chatID,
-	}
-	subData2 := Subscription{
-		UserID: newPrCh.ReceiverID,
-		ChatID: chatID,
-	}
-	messageData := UserMessage{
-		Body:   newPrCh.Message,
-		UserID: newPrCh.InitiatorID,
-		ChatID: chatID,
-	}
-	messageJson1, err := json.Marshal(messageData)
+	userHandler := dbManager.initializeDBhandler("user")
+	fmt.Println("SEARCH QUERY USER ID", sq.UserID)
+	result := make(map[string]interface{})
+	resUsers, err := userHandler.SearchUser(sq.Input, sq.UserID)
+
 	if err != nil {
 		fmt.Println(err)
-		log.Fatal(err)
+		return nil, err
 	}
-	err = messageHandler.CreateMessageHandler(messageJson1)
+
+	resChats, err := chatHandler.SearchChat(sq.Input, sq.UserID)
+
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	result["users"] = resUsers
+	result["chats"] = resChats
+	sq.SearchResults = result
+	fmt.Println("Result ENV:", sq)
+
+	return sq, nil
+}
+
+func (newPrCh *NewPrivateChat) save() (interface{}, error) {
+	chatHandler := dbManager.initializeDBhandler("chat")
+	messageHandler := dbManager.initializeDBhandler("message")
+
+	chatID, err := chatHandler.CreatePrivateChatHandler(newPrCh.InitiatorID, newPrCh.ReceiverID)
 	if err != nil {
 		log.Fatal(err)
 	}
-	subJson1, _ := json.Marshal(subData1)
-	subJson2, _ := json.Marshal(subData2)
-	subHandler.SaveSubHandler(subJson1)
-	subHandler.SaveSubHandler(subJson2)
+
+	messageData := UserMessage{
+		Body:     newPrCh.Message,
+		UserID:   newPrCh.InitiatorID,
+		ChatName: chatID,
+	}
+
+	err = messageHandler.CreateMessageHandler(messageData.Body, messageData.ChatName, messageData.UserID)
+	if err != nil {
+		log.Fatal(err)
+	}
 	newPrCh.ChatName = chatID
 	return newPrCh, nil
 }
@@ -219,7 +230,7 @@ func sendWsResponse(p []byte, cl *Client, msgT int) {
 	fmt.Println("Message sent successfully to client", string(p))
 }
 
-func processEnvelope(p []byte) OutEnvelope {
+func processEnvelope(p []byte, cl *Client) OutEnvelope {
 	fmt.Println("raw json:", string(p))
 	env := InEnvelope{}
 	err := json.Unmarshal(p, &env)
@@ -239,8 +250,7 @@ func processEnvelope(p []byte) OutEnvelope {
 		}
 	}
 
-	fmt.Println("here")
-	msg := kindHandlers[env.Type]()
+	msg := kindHandlers[env.Type](cl)
 
 	err = json.Unmarshal(p, msg)
 	if err != nil {
@@ -254,9 +264,8 @@ func processEnvelope(p []byte) OutEnvelope {
 }
 
 func (dbm *sqlDBwrap) handleDatabase(env OutEnvelope) (interface{}, error) {
-	jsoned, _ := json.Marshal(env.Data)
 	if action, ok := env.Data.(ActionOnType); ok {
-		res, err := action.save(jsoned)
+		res, err := action.save()
 		return res, err
 	} else {
 		fmt.Println("No write to database")

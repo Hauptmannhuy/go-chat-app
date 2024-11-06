@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"go-chat-app/dbmanager/handler"
 	"go-chat-app/dbmanager/service"
@@ -82,49 +81,4 @@ func (dbm *sqlDBwrap) initializeDBhandler(handlerDeclaration string) handler.Han
 		fmt.Println("No handler exists for specific declaration")
 	}
 	return handler
-}
-
-func fetchQueryData(p []byte) (interface{}, error) {
-	fmt.Println(string(p))
-	chatHandler := dbManager.initializeDBhandler("chat")
-	userHandler := dbManager.initializeDBhandler("user")
-	var data struct {
-		Input  string `json:"input"`
-		UserID string `json:"user_id"`
-	}
-	err := json.Unmarshal(p, &data)
-	if err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
-	result := make(map[string]interface{})
-	resUsers, err := userHandler.SearchUser(data.Input)
-	if err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
-	resChats, err := chatHandler.SearchChat(data.Input, data.UserID)
-	if err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
-	result["users"] = resUsers
-	result["chats"] = resChats
-	return result, nil
-}
-
-func createNewGroupChat(p []byte) error {
-	chatHandler := dbManager.initializeDBhandler("chat")
-	subHandler := dbManager.initializeDBhandler("subscription")
-	err := chatHandler.CreateChatHandler(p)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	err = subHandler.SaveSubHandler(p)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	return nil
 }

@@ -1,55 +1,45 @@
 package handler
 
 import (
-	"encoding/json"
 	"fmt"
 )
 
-func (h *Handler) CreateChatHandler(j []byte) error {
-	var chatObj struct {
-		ID   string `json:"chat_id"`
-		Type string `json:"chat_type"`
-	}
-	err := json.Unmarshal(j, &chatObj)
+func (h *Handler) CreateChatHandler(name, creatorID string) (string, error) {
 
-	if err != nil {
-		fmt.Println(err)
+	if creatorID == "" {
+		return "", &argError{"chatID field cannot be blank"}
 	}
 
-	if chatObj.ID == "" || chatObj.Type == "" {
-		return &argError{"chatID field cannot be blank"}
-	}
-
-	err = h.ChatService.CreateChat(chatObj.ID, chatObj.Type)
+	str, err := h.ChatService.CreateChat(name, creatorID)
 
 	if err != nil {
 		fmt.Println(err, "Failed to create message")
-		return err
+		return "", err
 	}
-	return err
+	return str, err
 }
 
 func (h *Handler) GetAllChats() ([]string, error) {
 	return h.ChatService.GetAllChats()
 }
 
-func (h *Handler) SearchUser(input string) (interface{}, error) {
+func (h *Handler) SearchUser(input, userID string) (interface{}, error) {
 
 	if input == "" {
 		return nil, &argError{"Input should not be empty"}
 	}
-	return h.UserService.SearchUser(input)
+	return h.UserService.SearchUser(input, userID)
 }
 
-func (h *Handler) CreatePrivateChatHandler(p []byte) (string, error) {
-	var data struct {
-		User1ID string `json:"initiator_id"`
-		User2ID string `json:"receiver_id"`
-	}
-	err := json.Unmarshal(p, &data)
-	if err != nil {
-		fmt.Println(err)
-		return "", err
-	}
-	return h.ChatService.CreatePrivateChat(data.User1ID, data.User2ID)
+func (h *Handler) CreatePrivateChatHandler(initiatorID, receiverID string) (string, error) {
+
+	return h.ChatService.CreatePrivateChat(initiatorID, receiverID)
+}
+
+func (h *Handler) LoadUserSubscribedChats(id string) ([]interface{}, error) {
+	return h.ChatService.LoadSubscribedChats(id)
+}
+
+func (h *Handler) LoadSubscribedPrivateChats(id string) (interface{}, error) {
+	return h.ChatService.LoadSubscribedPrivateChats(id)
 }

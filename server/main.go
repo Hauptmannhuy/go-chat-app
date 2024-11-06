@@ -58,9 +58,10 @@ func initializeWSconn(w http.ResponseWriter, r *http.Request) *Client {
 	}
 	usernameCookie, _ := r.Cookie("username")
 	token, _ := r.Cookie("token")
+	userIndex := fetchUserID(token.Value)
 	fmt.Println(r.Cookies())
 	subHandler := dbManager.initializeDBhandler("subscription")
-	subs, err := subHandler.LoadSubscriptions(usernameCookie.Value)
+	subs, err := subHandler.LoadSubscriptions(userIndex)
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -72,7 +73,7 @@ func initializeWSconn(w http.ResponseWriter, r *http.Request) *Client {
 		socket:    conn,
 		mutex:     sync.Mutex{},
 		subs:      subs,
-		index:     fetchUserID(token.Value),
+		index:     userIndex,
 	}
 }
 
@@ -88,17 +89,17 @@ func clientMessages(cl *Client) {
 	defer fmt.Println("Connection closed with", cl)
 	for {
 		cl.mutex.Lock()
-		peerSoc := cl.socket
+		peer := cl.socket
 
 		fmt.Println(cl.connected)
 
-		messageType, p, err := peerSoc.ReadMessage()
+		messageType, p, err := peer.ReadMessage()
 		cl.mutex.Unlock()
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		outEnv := processEnvelope(p)
+		outEnv := processEnvelope(p, cl)
 		outEnv.Data, err = dbManager.handleDatabase(outEnv)
 		if err != nil {
 			errorMessg := Error{err.Error()}
@@ -133,16 +134,25 @@ func (h *Hub) AddHubMember(c *Client) {
 
 }
 
-func (cl *Client) sendSubscriptions() {
+func (cl *Client) sendSubscribedChats() {
+
 	dbChatHandler := dbManager.initializeDBhandler("chat")
-	data, err := dbChatHandler.LoadUserSubscribedChats(cl.username)
+	groupChatData, err := dbChatHandler.LoadUserSubscribedChats(cl.index)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	privateChatData, err := dbChatHandler.LoadSubscribedPrivateChats(cl.index)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	chatContainer := make(map[string]interface{})
+	chatContainer["private"] = privateChatData
+	chatContainer["group"] = groupChatData
 	var env OutEnvelope
 	env.Type = "LOAD_SUBS"
-	env.Data = data
+	env.Data = chatContainer
 
 	j, err := json.Marshal(env)
 	if err != nil {

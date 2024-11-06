@@ -1,5 +1,0 @@
-CREATE TABLE IF NOT EXISTS chats (
-   id SERIAL PRIMARY KEY,
-    chat_id VARCHAR(255)  NOT NULL,
-    chat_type VARCHAR(255) NOT NULL
-);

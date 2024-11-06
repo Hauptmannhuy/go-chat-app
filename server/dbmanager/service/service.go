@@ -9,8 +9,8 @@ type Service struct {
 	SubscriptionStore store.SubscriptionStore
 }
 
-func (s *Service) SearchUser(input string) (interface{}, error) {
-	return s.UserStore.SearchUser(input)
+func (s *Service) SearchUser(input, userID string) (interface{}, error) {
+	return s.UserStore.SearchUser(input, userID)
 }
 
 func (s *Service) CreateAccount(name, email, pass string) (string, error) {
@@ -25,8 +25,8 @@ func (s *Service) LoadSubscriptions(username string) ([]string, error) {
 	return s.SubscriptionStore.LoadSubscriptions(username)
 }
 
-func (s *Service) SaveSubscription(username, chatID string) error {
-	return s.SubscriptionStore.SaveSubscription(username, chatID)
+func (s *Service) SaveSubscription(userID, chatID string) error {
+	return s.SubscriptionStore.SaveSubscription(userID, chatID)
 }
 
 func (s *Service) RetrieveChatsMessages(subs []string) (interface{}, error) {
@@ -45,14 +45,18 @@ func (s *Service) GetAllChats() ([]string, error) {
 	return s.ChatStore.GetChats()
 }
 
-func (s *Service) CreateChat(chatID, chat_type string) error {
-	return s.ChatStore.SaveChat(chatID, chat_type)
+func (s *Service) CreateChat(name, creatorID string) (string, error) {
+	return s.ChatStore.SaveChat(name, creatorID)
 }
 
-func (s *Service) LoadSubscribedChats(username string) ([]interface{}, error) {
-	return s.ChatStore.LoadSubscribedChats(username)
+func (s *Service) LoadSubscribedChats(id string) ([]interface{}, error) {
+	return s.ChatStore.LoadSubscribedChats(id)
 }
 
 func (s *Service) CreatePrivateChat(user1id, user2id string) (string, error) {
 	return s.ChatStore.SavePrivateChat(user1id, user2id)
+}
+
+func (s *Service) LoadSubscribedPrivateChats(id string) (interface{}, error) {
+	return s.ChatStore.LoadSubscribedPrivateChats(id)
 }

@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"fmt"
 	"go-chat-app/dbmanager/service"
 )
@@ -21,25 +20,15 @@ type Handler struct {
 	SubscriptionService service.Service
 }
 
-func (h *Handler) CreateMessageHandler(j []byte) error {
-	var message struct {
-		Body   string `json:"body"`
-		ChatID string `json:"chat_id"`
-		UserID string `json:"user_id"`
-	}
+func (h *Handler) CreateMessageHandler(body, chatID, userID string) error {
 
-	if err := json.Unmarshal(j, &message); err != nil {
-		fmt.Println(err)
-		return err
-	}
-
-	if message.Body == "" || message.ChatID == "" {
+	if body == "" || chatID == "" {
 		var err = &argError{"Message body or chatID"}
 
 		return err
 	}
 
-	if err := h.MessageService.CreateMessage(message.Body, message.ChatID, message.UserID); err != nil {
+	if err := h.MessageService.CreateMessage(body, chatID, userID); err != nil {
 		fmt.Println(err, "Failed to create message")
 		return err
 	}
@@ -68,18 +57,9 @@ func (h *Handler) LoadSubscriptions(username string) ([]string, error) {
 	return h.SubscriptionService.LoadSubscriptions(username)
 }
 
-func (h *Handler) SaveSubHandler(j []byte) error {
-	var data struct {
-		UserID string `json:"user_id"`
-		ChatID string `json:"chat_id"`
-	}
-	err := json.Unmarshal(j, &data)
+func (h *Handler) SaveSubHandler(userID, chatID string) error {
 
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	return h.SubscriptionService.SaveSubscription(data.UserID, data.ChatID)
+	return h.SubscriptionService.SaveSubscription(userID, chatID)
 
 }
 
@@ -92,8 +72,4 @@ func (h *Handler) SearchChat(input, userID string) ([]interface{}, error) {
 		return nil, &argError{"Input should not be empty"}
 	}
 	return h.ChatService.SearchChat(input, userID)
-}
-
-func (h *Handler) LoadUserSubscribedChats(username string) ([]interface{}, error) {
-	return h.ChatService.LoadSubscribedChats(username)
 }
