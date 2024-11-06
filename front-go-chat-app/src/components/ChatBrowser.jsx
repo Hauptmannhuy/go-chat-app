@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { useWebsocket } from "../modules/useWebsocket";
+import { useChatAction } from "../modules/useChatActions";
 import Chat from "./Chat";
 import ChatList from "./ChatList";
 import { useNavigate } from "react-router-dom";
@@ -8,190 +10,64 @@ import { useRef } from "react";
 import Search from "./Search";
 
 function ChatBrowser(){ 
-   
-
-  const socketConnection = useRef(null)
-
   const navigate = useNavigate()
-  
-  const [chats, setChats] = useState([]);
-  const [messages, setMessages] = useState({})
-
-
   const [chatSelected, setSelectedChat] = useState(null)
   const [creationChatInvoked, setInvokeStatus] = useState(false)
   const [creationInput, setCreationInput] = useState("")
-
-  const [searchResults, setSearchResults] = useState(null)
   
-  const [lastResponse, setLastResponse] = useState(null)
+  const [profiles, setProfiles] = useState({})
+  const [chats, setChats] = useState({});
+  const [messages, setMessages] = useState({})
+  const [searchResults, setSearchResults] = useState(null)
+  const [searchProfileResults, setsearchProfileResults] = useState(null)
+  
 
+  const {sendMessage} = useWebsocket("/socket/chat", (ev) => {
+    processSocketMessage(ev)
+  })
+  const {sendEnvelope, processSocketMessage} = useChatAction(sendMessage, {
+    setChats, setMessages, setProfiles, setsearchProfileResults,setSearchResults
+  })
+  
 
-  const sendEnvelope = (type, data) => {
-      const actions = {
-        "NEW_MESSAGE": {
-          type: "NEW_MESSAGE",
-          user_id: `${data[0]}`,
-          chat_id: `${data[1]}`,
-          body: `${data[2]}`,
-        },
-        "NEW_CHAT": {
-          type: "NEW_CHAT",
-          chat_id: `${data[0]}`,
-          user_id: `${data[1]}`
-        },
-        "JOIN_CHAT": {
-          type: "JOIN_CHAT",
-          chat_id: `${data[0]}`,
-          user_id: `${data[1]}`
-        },
-        "SEARCH_QUERY": {
-          type: "SEARCH_QUERY",
-          input: `${data[0]}`
-        }
-      }
+  function selectChatHandler(chatname) {
+    console.log(chatname)
+    if (!messages[chatname]) {
+      addMessagesObjectHandler(chatname)
+    }
+    const selectedChat = chats[chatname] || searchResults[chatname]
+    console.log(selectedChat)
+    setSelectedChat(selectedChat)
+  }
+
     
-      const json = actions[type];
-      if (json) {
-        socketConnection.current.send(JSON.stringify(json));
-      } else {
-        console.error(`Unknown action type: ${type}`);
-      }
-    };
 
-  const createChat = (name,type = "NEW_CHAT", user_id = getUsernameCookie()) => {
+  const createGroupChat = (name) => {
     setInvokeStatus(false)
     setCreationInput(false)
     
-    sendEnvelope(type, [name, user_id])
+    sendEnvelope("NEW_CHAT", [name])
   };
 
-  const joinChat = (name,type = "JOIN_CHAT") => {
-    appendNewChat(name)
-    sendEnvelope(type, [name, getUsernameCookie() ])
-  }
-  
-  const appendNewChat = (name) => {
-    const previuosChats = [...chats]
-    const newChats = previuosChats.filter(el => (el.name != name))
-    const changedChat = {name: name, participation: true}
-    newChats.push(changedChat)
-    setChats(newChats)
-  }
 
-  const addChatsAndMessages = (names, participation = false) => {
-    if (!names) return
-    typeof names != 'object' ? names = [names] : null
-    names.forEach(name => {
-      addChatHandler(name, participation)
-      addMessagesObjectHandler(name)
-    })
-  }
-
-  
-  const addChatHandler = (name, participation) => {
-    setChats((chats) => {
-      console.log(chats)
-      const newChat = createNewChatObject(name, participation)
-      return [...chats, newChat]
-    })
-  }
-
-  const createNewChatObject = (name, participation) => ({name: `${name}`, participation: participation})
-
-  const addMessagesObjectHandler = (name) => {
-    setMessages((messages) => {
-      const newMessages = {...messages}
-      newMessages[name] = []
-      return newMessages
-    })
-  }
-
-  function saveLocalMessage(message) {
-    setMessages((messages) => {
-      const newMessages = {...messages}
-      console.log(newMessages)
+  function MessageSendHandler(chatObj, input){
+    console.log(chatObj)
+    if (chatObj.type == 'private' && !chatObj.participation){ 
+      console.log(searchProfileResults)
+      let id = searchProfileResults[chatObj.name].profile.id
       
-    
-      newMessages[message.chat_id].push(message)
-      return newMessages
-    })
-  }
-
-  function handleMessageLoad(data){
-   setMessages((messages) => ({...messages, ...data}))
-  }
-
-
-  const sendMessage = (chatID, userID, msg, type = "NEW_MESSAGE") => {
-    sendEnvelope(type, [userID, chatID, msg])
+      return sendEnvelope("NEW_PRIVATE_CHAT", [id, input])
+    }
+    sendEnvelope("NEW_MESSAGE", [chatObj.name, input])
   }
   
  
-  function processSocketMessage(ev) {
-    const response = JSON.parse(ev.data);
-    console.log(response.Data)
-    switch (response.Type) {
-      case "NEW_CHAT":
-        addChatsAndMessages(response.Data.chat_id, true);
-        break;
-      case "NEW_MESSAGE":
-        saveLocalMessage(response.Data)
-        break;
-      case "LOAD_SUBS":
-        return addChatsAndMessages(response.Data, true);
-      case "LOAD_MESSAGES":
-        handleMessageLoad(response.Data)
-        console.log(response)
-        break;
-      case "SEARCH_QUERY":
-        console.log(response.Data)
-        setLastResponse(response.Data)
-        break;
-      case "ERROR":
-        console.log(response)
-      default:
-        console.log(ev.data.Data);
-        break;
-    }
-  }; 
-
- 
-
   const search = (input) => {
-    if (input == ""){
-      setLastResponse(null)
-      return
-    }
-    sendEnvelope("SEARCH_QUERY", [input])
+    if (input == "") return setSearchResults(null)
+    sendEnvelope("SEARCH_QUERY", [input, getUsernameCookie()])
   }
 
-  function handleSearchQuery(data){
-    
-    const filterChats = (data) => {
-      if (!data.chats) return []
 
-      const participatedChats = chats.filter(chat => chat.participation);
-
-      const participatedQueriedChats = participatedChats.filter((el) =>  data.chats.includes(el.name));
-      const participatingChatNames = participatedQueriedChats.map(chat => chat.name);
-
-       const newChats = data.chats
-        .filter(chatName => !participatingChatNames.includes(chatName))
-        .map(name => createNewChatObject(name, false));    
-
-      return [...newChats, ...participatedQueriedChats]
-    }
-    const fetchedChats = filterChats(data)
-    console.log(fetchedChats)
-    setSearchResults(fetchedChats)
-  }
-  
-  useEffect(() => {
-    if (lastResponse){
-      handleSearchQuery(lastResponse)
-    }
-  }, [lastResponse])
 
   const userAuthenticated = () => {
     if (document.cookie != '') return false;
@@ -201,24 +77,19 @@ function ChatBrowser(){
   const getUsernameCookie = () =>  document.cookie.split('=')[1]
 
   
- 
-  useEffect(()=>{
-    const websocket = new WebSocket("/socket/chat")
 
-    websocket.addEventListener("open", () => {
-      socketConnection.current = websocket
-    })
-
-    websocket.addEventListener("message", processSocketMessage)
-
-    
-    websocket.addEventListener("close", (ev) => {
-     
-    })
-    return () => websocket.close()
-  }, [])
-
-
+  const joinChat = (name,type = "JOIN_CHAT") => {
+    appendNewChat(name)
+    sendEnvelope(type, [name, getUsernameCookie() ])
+  }
+  
+  const appendNewChat = (name, type) => {
+    const previuosChats = [...chats]
+    const newChats = previuosChats.filter(el => (el.name != name))
+    const changedChat = {name: name, participation: true}
+    newChats.push(changedChat)
+    setChats(newChats)
+  }
 
   return (
     <>
@@ -232,16 +103,14 @@ function ChatBrowser(){
     searchHandler={search}/>
     </p>
 
-   { searchResults && lastResponse ?  
+   { searchResults ?  
     <ChatList 
      chats={searchResults}
-     handleSelect={setSelectedChat}
-     handleJoin={joinChat}
+     handleSelect={selectChatHandler}
      /> : 
      <ChatList
       chats={chats}
-      handleSelect={setSelectedChat}
-      handleJoin={joinChat}
+      handleSelect={selectChatHandler}
       />
    } 
     </div>
@@ -255,7 +124,7 @@ function ChatBrowser(){
     {creationChatInvoked ? (
       <div>
         <input type="text" onChange={(e) => setCreationInput(e.target.value)}/>
-        <button onClick={() => createChat(creationInput)}>Create</button>
+        <button onClick={() => createGroupChat(creationInput)}>Create</button>
       </div>
     ) : (
       null
@@ -265,9 +134,10 @@ function ChatBrowser(){
     <div className="chat-display">
       {chatSelected ? (
       <Chat
-      chatName = {chatSelected}
-      msgHandler = {sendMessage}
-      messages = {messages[chatSelected]}
+      chat = {chatSelected}
+      msgHandler = {MessageSendHandler}
+      messages = {messages[chatSelected.name]}
+      subscribeHandler={joinChat}
       userID = {getUsernameCookie()}/>
       ) : (
       <h2>Chat display</h2>
