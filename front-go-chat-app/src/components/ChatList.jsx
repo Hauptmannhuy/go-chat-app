@@ -10,7 +10,7 @@ function ChatList({chats, handleSelect, handleJoin}) {
 
     {chatKeys.map((key) => (
        
-        <button key={key} onClick= {() => {handleSelect(key) }} name={key}> {chats[key].name} </button>)
+        <button key={key} onClick= {() => {handleSelect(key) }} name={key}> {chats[key].name } </button>)
     )}
       
     </div>

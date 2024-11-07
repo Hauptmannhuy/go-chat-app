@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-import { useWebsocket } from "../modules/useWebsocket";
-import { useChatAction } from "../modules/useChatActions";
+
 import Chat from "./Chat";
 import ChatList from "./ChatList";
-import { useNavigate } from "react-router-dom";
 import SignOutButton from "./SignOutButton";
-import { useRef } from "react";
 import Search from "./Search";
+
+import { useChatAction } from "../modules/useChatActions";
+import { useWebsocket } from "../modules/useWebsocket";
+import { useChatBuild } from "../modules/useChatBuild";
+import { useMessageBuild } from "../modules/useMessageBuild";
+import { useSearchQuery } from "../modules/useSearchQuery";
 
 function ChatBrowser(){ 
   const navigate = useNavigate()
@@ -15,31 +19,32 @@ function ChatBrowser(){
   const [creationChatInvoked, setInvokeStatus] = useState(false)
   const [creationInput, setCreationInput] = useState("")
   
-  const [profiles, setProfiles] = useState({})
-  const [chats, setChats] = useState({});
-  const [messages, setMessages] = useState({})
-  const [searchResults, setSearchResults] = useState(null)
-  const [searchProfileResults, setsearchProfileResults] = useState(null)
-  
+  const {messages, addMessageStorage, handleMessageLoad, addMessage} = useMessageBuild()
+  const {searchResults, handleSearchQuery, setEmptyInput} = useSearchQuery()
+  const {chats, handleInitChatLoad, addChat} = useChatBuild(addMessageStorage)
 
   const {sendMessage} = useWebsocket("/socket/chat", (ev) => {
     processSocketMessage(ev)
   })
+
   const {sendEnvelope, processSocketMessage} = useChatAction(sendMessage, {
-    setChats, setMessages, setProfiles, setsearchProfileResults,setSearchResults
+    handleInitChatLoad, addChat, handleMessageLoad, addMessage, handleSearchQuery
   })
+
+
   
 
   function selectChatHandler(chatname) {
     console.log(chatname)
     if (!messages[chatname]) {
-      addMessagesObjectHandler(chatname)
+      addMessageStorage(chatname)
     }
     const selectedChat = chats[chatname] || searchResults[chatname]
     console.log(selectedChat)
     setSelectedChat(selectedChat)
   }
-
+  
+  console.log(messages)
     
 
   const createGroupChat = (name) => {
@@ -63,7 +68,7 @@ function ChatBrowser(){
   
  
   const search = (input) => {
-    if (input == "") return setSearchResults(null)
+    if (input == "") return setEmptyInput()
     sendEnvelope("SEARCH_QUERY", [input, getUsernameCookie()])
   }
 
@@ -91,6 +96,7 @@ function ChatBrowser(){
     setChats(newChats)
   }
 
+  console.log(chatSelected)
   return (
     <>
 
