@@ -12,15 +12,15 @@ import (
 
 type Message struct {
 	UserID    string `json:"user_id"`
+	Username  string `json:"username"`
 	Body      string `json:"body"`
 	MessageID string `json:"message_id"`
-	ChatID    string `json:"chat_id"`
-	// CreatedAt string `json:"created_at"`
+	ChatID    string `json:"chat_name"`
 }
 
 type UserProfileData struct {
 	Username string `json:"username"`
-	ID       string `json:"id"`
+	ID       int    `json:"id"`
 }
 
 type loginUserData struct {
@@ -30,10 +30,16 @@ type loginUserData struct {
 }
 
 type privateChat struct {
-	ChatName string `json:"chat_name"`
-	ChatID   string `json:"chat_id"`
-	User1ID  string `json:"user1_id"`
-	User2ID  string `json:"user2_id"`
+	ChatName  string `json:"chat_name"`
+	ChatID    int    `json:"chat_id"`
+	User1ID   int    `json:"user1_id"`
+	User2ID   int    `json:"user2_id"`
+	Handshake bool   `json:"handshake"`
+}
+
+type PrivateChatInfo struct {
+	Name string `json:"name"`
+	ID   int    `json:"id"`
 }
 
 type SearchResults []interface{}
@@ -52,9 +58,9 @@ type MessageStore interface {
 type ChatStore interface {
 	LoadSubscribedChats(username string) ([]interface{}, error)
 	SaveChat(name, creatorID string) (string, error)
-	SavePrivateChat(u1id, u2id string) (string, error)
+	SavePrivateChat(u1id, u2id string) (interface{}, error)
 	GetChats() ([]string, error)
-	SearchChat(input, userID string) ([]interface{}, error)
+	SearchChat(input, userID string) (interface{}, error)
 	LoadSubscribedPrivateChats(id string) (interface{}, error)
 }
 
@@ -140,13 +146,13 @@ func (s *SQLstore) retrieveLastMessageID(chatID string) (int, error) {
 	return message_id, err
 }
 
-func (s *SQLstore) SaveMessage(body, chatID, userID string) error {
-	messageID, err := s.retrieveLastMessageID(chatID)
+func (s *SQLstore) SaveMessage(body, chatName, userID string) error {
+	messageID, err := s.retrieveLastMessageID(chatName)
 
 	if err != nil {
 		return err
 	}
-	_, err = s.DB.Exec("INSERT INTO messages (body, user_id, chat_id, message_id) VALUES ($1, $2, $3, $4)", body, userID, chatID, messageID)
+	_, err = s.DB.Exec("INSERT INTO messages (body, user_id, chat_name, message_id) VALUES ($1, $2, $3, $4)", body, userID, chatName, messageID)
 	if err != nil {
 		fmt.Println("failed to save message")
 		return err
@@ -164,7 +170,13 @@ func (s *SQLstore) GetChatsMessages(subs []string) (interface{}, error) {
 
 	for _, sub := range subs {
 
-		rows, err := s.DB.Query(fmt.Sprintf("SELECT message_id, body, chat_id, user_id FROM messages WHERE chat_id = '%s'", sub))
+		query := `SELECT m.message_id, m.body, m.chat_name, m.user_id, u.username 
+							FROM messages AS m
+							JOIN users AS u
+							ON m.user_id = u.id
+							WHERE chat_name = $1`
+
+		rows, err := s.DB.Query(query, sub)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +187,7 @@ func (s *SQLstore) GetChatsMessages(subs []string) (interface{}, error) {
 			queryResults[sub] = true
 			var chatMessage Message
 
-			if err := rows.Scan(&chatMessage.MessageID, &chatMessage.Body, &chatMessage.ChatID, &chatMessage.UserID); err != nil {
+			if err := rows.Scan(&chatMessage.MessageID, &chatMessage.Body, &chatMessage.ChatID, &chatMessage.UserID, &chatMessage.Username); err != nil {
 				return nil, err
 			}
 			resultRows = append(resultRows, chatMessage)
@@ -288,10 +300,8 @@ func (s *SQLstore) LoadSubscriptions(userID string) ([]string, error) {
 
 	var res []string
 
-	tr, _ := s.DB.Begin()
-
-	rows, err := tr.Query(`
-	SELECT gc.chat_name 
+	rows, err := s.DB.Query(`
+	SELECT gc.chat_name
 	FROM group_chats AS gc
 	JOIN group_chat_subs AS gcs
 	ON gc.id = gcs.chat_id
@@ -303,10 +313,26 @@ func (s *SQLstore) LoadSubscriptions(userID string) ([]string, error) {
 		return nil, err
 	}
 	for rows.Next() {
-		var sub string
-		rows.Scan(&sub)
-		res = append(res, sub)
+		var subGroup string
+		rows.Scan(&subGroup)
+		res = append(res, subGroup)
 	}
+
+	rows, err = s.DB.Query(`
+	SELECT chat_name
+	FROM private_chats
+	WHERE user1_id = $1 OR user2_id = $1
+	`, userID)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	for rows.Next() {
+		var subPrivate string
+		rows.Scan(&subPrivate)
+		res = append(res, subPrivate)
+	}
+
 	fmt.Println("Subs:", res)
 	return res, nil
 
@@ -328,15 +354,21 @@ func (s *SQLstore) SaveSubscription(userID, chatID string) error {
 	return nil
 }
 
-func (s *SQLstore) SearchChat(input, userID string) ([]interface{}, error) {
+func (s *SQLstore) SearchChat(input, userID string) (interface{}, error) {
 
-	var results []interface{}
+	results := make(map[string]interface{})
 	query := fmt.Sprintf(`
-		SELECT chat_name, id
-		FROM group_chats
-		WHERE chat_name NOT IN (SELECT chat_name FROM group_chat_subs WHERE user_id = %s)
-	  AND chat_name ILIKE '%s'
+		SELECT gc.chat_name, gc.id,
+		CASE 
+			WHEN gcs.id IS NOT NULL THEN TRUE
+			ELSE FALSE
+		END AS is_subscribed
+		FROM group_chats AS gc
+		LEFT JOIN group_chat_subs AS gcs
+		ON gcs.user_id = %s AND gc.id = gcs.chat_id
+		WHERE gc.chat_name ILIKE '%s'
 		LIMIT 25
+
 	`, userID, input+"%")
 	fmt.Println(query)
 	rows, err := s.DB.Query(query)
@@ -347,43 +379,73 @@ func (s *SQLstore) SearchChat(input, userID string) ([]interface{}, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var data struct {
-			Name string `json:"chat_name"`
-			ID   string `json:"chat_id"`
+			Name         string `json:"chat_name"`
+			ID           string `json:"chat_id"`
+			IsSubscribed string `json:"is_subscribed"`
 		}
-		rows.Scan(&data.Name, &data.ID)
+		rows.Scan(&data.Name, &data.ID, &data.IsSubscribed)
 		fmt.Println(data)
-		results = append(results, data)
+		results[data.Name] = data
 	}
 	return results, err
 }
 
 func (s *SQLstore) SearchUser(input, userID string) (interface{}, error) {
-	userID = s.retrieveUsername(userID)
+	userName := s.retrieveUsername(userID)
 	userMap := make(map[string]interface{})
-	query := fmt.Sprintf(`SELECT u.username, u.id, pc.id, pc.chat_name, pc.user1_id, pc.user2_id  FROM users AS u
+	query := `
+	SELECT u.username, u.id, pc.id, pc.chat_name, pc.user1_id, pc.user2_id,
+	CASE
+		WHEN pc.id IS NOT NULL THEN TRUE
+		ELSE FALSE
+		END AS handshake
+	FROM users AS u
 	LEFT JOIN private_chats AS pc
-	ON u.id = pc.user1_id OR u.id = pc.user2_id
-	WHERE u.username ILIKE '%s' AND u.username NOT ILIKE '%s' LIMIT 10`, input+"%", userID)
+	ON (CAST($1 AS INTEGER) = pc.user1_id AND u.id = pc.user2_id)
+	 OR (u.id = pc.user1_id AND CAST($1 AS INTEGER) = pc.user2_id)
+	WHERE u.username ILIKE $2 AND u.username NOT ILIKE $3 LIMIT 10`
 
-	fmt.Println(query)
+	rows, err := s.DB.Query(query, userID, input+"%", userName)
 
-	rows, err := s.DB.Query(query)
+	fmt.Println(rows)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var resultChat privateChat
-		var resultProfile UserProfileData
+
+		var username, chatName string
+		var id, pcID, user1ID, user2ID int
+		var handshake bool
+
+		if err := rows.Scan(&username, &id, &pcID, &chatName, &user1ID, &user2ID, &handshake); err != nil {
+			fmt.Println("Row scan error:", err)
+			continue
+		}
+
+		fmt.Printf("username: %s, id: %d, pcID: %d, chatName: %s, user1ID: %d, user2ID: %d, handshake: %v\n",
+			username, id, pcID, chatName, user1ID, user2ID, handshake)
+
+		resultChat := privateChat{
+			ChatName:  chatName,
+			ChatID:    pcID,
+			User1ID:   user1ID,
+			User2ID:   user2ID,
+			Handshake: handshake,
+		}
+
+		resultProfile := UserProfileData{
+			Username: username,
+			ID:       id,
+		}
 		var container struct {
 			Profile UserProfileData `json:"profile"`
 			Chat    privateChat     `json:"chat"`
 		}
 
-		rows.Scan(&resultProfile.Username, &resultProfile.ID, &resultChat.ChatID, &resultChat.ChatName, &resultChat.User1ID, &resultChat.User2ID)
-
 		container.Profile = resultProfile
+		container.Chat = resultChat
 		userMap[resultProfile.Username] = container
 		fmt.Println(container)
 	}
@@ -393,7 +455,6 @@ func (s *SQLstore) SearchUser(input, userID string) (interface{}, error) {
 
 func (s *SQLstore) LoadSubscribedChats(userID string) ([]interface{}, error) {
 
-	fmt.Println("id", userID)
 	var res SearchResults
 	tr, _ := s.DB.Begin()
 	rows, err := tr.Query(`
@@ -450,7 +511,7 @@ func (s *SQLstore) LoadSubscribedPrivateChats(userID string) (interface{}, error
 	return privateChatsMap, nil
 }
 
-func (s *SQLstore) SavePrivateChat(user1id, user2id string) (string, error) {
+func (s *SQLstore) SavePrivateChat(user1id, user2id string) (interface{}, error) {
 	user1name := s.retrieveUsername(user1id)
 	user2name := s.retrieveUsername(user2id)
 	fmt.Println("input:", user1id, user2id, user1name, user2name)
@@ -464,10 +525,24 @@ func (s *SQLstore) SavePrivateChat(user1id, user2id string) (string, error) {
 	if err != nil {
 		fmt.Println("Error saving private chats", err)
 		tr.Rollback()
-		return "", err
+		return nil, err
 	}
+
+	res := tr.QueryRow(`
+		SELECT chat_name, id 
+		FROM private_chats
+		WHERE chat_name = $1
+	`, chatName)
+
+	var data PrivateChatInfo
+
+	err = res.Scan(&data.Name, &data.ID)
+	if err != nil {
+		log.Fatal("error scanning in savePrivateChat", err)
+	}
+
 	tr.Commit()
-	return chatName, nil
+	return data, nil
 }
 
 func (s *SQLstore) retrieveUsername(id string) string {

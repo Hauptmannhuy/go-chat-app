@@ -22,27 +22,43 @@ export function useSearchQuery(){
     const groupChatKeys = Object.keys(data.chats)
     const groupChats = data.chats
     const users = data.users
+    
     for (let i = 0; i < profileKeys.length; i++) {
       const profileName = profileKeys[i]
       const profile = users[profileName].profile
       const chatProfile = users[profileName].chat
 
       newProfiles[profileName] = profile
-      newProfileChats[profileName] = createNewChatObject(
-        profileName,
-        chatProfile.chat_id,
-        chatProfile.handshake === 'true',
-        'private'
-      )
+      if (chatProfile.handshake) {
+        newProfileChats[profileName] = createNewChatObject(
+          chatProfile.chat_name,
+          chatProfile.chat_id,
+          true, 
+          'private'
+        )
+      } else {
+        newProfileChats[profileName] = createNewChatObject(
+          profileName,
+          profile.id,
+          false, 
+          'private'
+        )
+      }
+     
     }
+    
     for (let i = 0; i < groupChatKeys.length; i++) {
       const groupChatName = groupChatKeys[i];
       const groupChat = groupChats[groupChatName]
-      newGroupChats[groupChat.chat_name] = createNewChatObject(groupChat.chat_name, groupChat.chat_id, groupChat.is_subscribed == 'true' ? true : false, 'group')
+      newGroupChats[groupChat.chat_name] = createNewChatObject(
+        groupChat.chat_name, 
+        groupChat.chat_id, 
+        groupChat.is_subscribed == 'true' ? true : false,
+         'group'
+      )
     }
-    setSearchProfileResults((prev) => ({ ...prev, ...newProfiles }));
-    setSearchResults((prev) => ({ ...prev, ...newProfileChats }));
-    setSearchResults((prev) => ({ ...prev, ...newGroupChats }));
+    setSearchProfileResults((prev) => ({ ...prev, ...newProfiles }))
+    setSearchResults((prev) => ({ ...prev, ...newProfileChats, ...newGroupChats }))
 
 }
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -26,20 +25,20 @@ type ChatList struct {
 
 var chatList ChatList
 
-func (chL *ChatList) CreateChat(chID string) {
+func (chL *ChatList) CreateChat(chName string) *Chat {
 	chL.mutex.Lock()
 	defer chL.mutex.Unlock()
 
 	chat := &Chat{
-		ID: chID,
+		ID: chName,
 	}
-	chL.Chats[chID] = chat
+	chL.Chats[chName] = chat
+	return chat
 }
 
 func (chL *ChatList) initializeRooms() {
 	dbChatHandler := dbManager.initializeDBhandler("chat")
 	list, _ := dbChatHandler.GetAllChats()
-	fmt.Println(list)
 	chL.Chats = make(map[string]*Chat)
 	for _, chID := range list {
 		chat := &Chat{

@@ -16,7 +16,7 @@ function Chat({ chat, msgHandler, subscribeHandler, messages}){
       ) : (
         <div>
         {messages.map((el,i) => 
-          (<p key={i}>{el.user_id}: {el.body}</p>)
+          (<p key={i}>{el.username}: {el.body}</p>)
         )}
       <button onClick={() => msgHandler(chat, inputValue)}>Send</button>
       <input type="text" onChange={(e) => (setInputValue(e.target.value))} />

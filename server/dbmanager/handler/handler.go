@@ -67,7 +67,7 @@ func (h *Handler) GetChatsMessages(subs []string) (interface{}, error) {
 	return h.MessageService.RetrieveChatsMessages(subs)
 }
 
-func (h *Handler) SearchChat(input, userID string) ([]interface{}, error) {
+func (h *Handler) SearchChat(input, userID string) (interface{}, error) {
 	if input == "" {
 		return nil, &argError{"Input should not be empty"}
 	}

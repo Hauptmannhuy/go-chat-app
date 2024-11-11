@@ -39,6 +39,7 @@ export function useChatAction(sendMessage, { handleInitChatLoad, addChat,handleM
 
   const processSocketMessage = (ev) => {
     const response = JSON.parse(ev.data)
+    console.log(ev.data)
     const actionOnType = {
       NEW_CHAT: () => {
         const {chat_name,chat_id } = response.Data
@@ -49,6 +50,9 @@ export function useChatAction(sendMessage, { handleInitChatLoad, addChat,handleM
       },
       NEW_PRIVATE_CHAT: () => {
         console.log(response)
+        const {chat_name, chat_id, message} = response.Data
+        addChat(chat_name,chat_id, 'private', true)
+        addMessage(message)
       },
       LOAD_SUBS: () => {
         handleInitChatLoad(response.Data.group,'group', true)

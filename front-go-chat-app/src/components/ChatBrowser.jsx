@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 
@@ -14,14 +14,22 @@ import { useMessageBuild } from "../modules/useMessageBuild";
 import { useSearchQuery } from "../modules/useSearchQuery";
 
 function ChatBrowser(){ 
+  const userAuthenticated = () => {
+    if (document.cookie != '') return false;
+    return true;
+  }
+
+  const getUsernameCookie = () =>  document.cookie.split('=')[1]
+
   const navigate = useNavigate()
   const [chatSelected, setSelectedChat] = useState(null)
   const [creationChatInvoked, setInvokeStatus] = useState(false)
   const [creationInput, setCreationInput] = useState("")
   
   const {messages, addMessageStorage, handleMessageLoad, addMessage} = useMessageBuild()
-  const {searchResults, handleSearchQuery, setEmptyInput} = useSearchQuery()
-  const {chats, handleInitChatLoad, addChat} = useChatBuild(addMessageStorage)
+  const {searchResults,searchProfileResults, handleSearchQuery, setEmptyInput} = useSearchQuery()
+  const {chats, handleInitChatLoad, addChat} = useChatBuild(addMessageStorage, getUsernameCookie())
+
 
   const {sendMessage} = useWebsocket("/socket/chat", (ev) => {
     processSocketMessage(ev)
@@ -58,9 +66,8 @@ function ChatBrowser(){
   function MessageSendHandler(chatObj, input){
     console.log(chatObj)
     if (chatObj.type == 'private' && !chatObj.participation){ 
-      console.log(searchProfileResults)
-      let id = searchProfileResults[chatObj.name].profile.id
-      
+      let id = searchProfileResults[chatObj.name].id
+      console.log(chatObj, id)
       return sendEnvelope("NEW_PRIVATE_CHAT", [id, input])
     }
     sendEnvelope("NEW_MESSAGE", [chatObj.name, input])
@@ -72,16 +79,6 @@ function ChatBrowser(){
     sendEnvelope("SEARCH_QUERY", [input, getUsernameCookie()])
   }
 
-
-
-  const userAuthenticated = () => {
-    if (document.cookie != '') return false;
-    return true;
-  }
-
-  const getUsernameCookie = () =>  document.cookie.split('=')[1]
-
-  
 
   const joinChat = (name,type = "JOIN_CHAT") => {
     appendNewChat(name)
@@ -95,7 +92,8 @@ function ChatBrowser(){
     newChats.push(changedChat)
     setChats(newChats)
   }
-
+  console.log("chats", chats)
+  console.log("messages", messages)
   console.log(chatSelected)
   return (
     <>
@@ -113,10 +111,13 @@ function ChatBrowser(){
     <ChatList 
      chats={searchResults}
      handleSelect={selectChatHandler}
+     currentUsername={getUsernameCookie()}
      /> : 
      <ChatList
       chats={chats}
       handleSelect={selectChatHandler}
+      currentUsername={getUsernameCookie()}
+
       />
    } 
     </div>

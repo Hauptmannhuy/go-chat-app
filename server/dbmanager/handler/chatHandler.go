@@ -31,7 +31,7 @@ func (h *Handler) SearchUser(input, userID string) (interface{}, error) {
 	return h.UserService.SearchUser(input, userID)
 }
 
-func (h *Handler) CreatePrivateChatHandler(initiatorID, receiverID string) (string, error) {
+func (h *Handler) CreatePrivateChatHandler(initiatorID, receiverID string) (interface{}, error) {
 
 	return h.ChatService.CreatePrivateChat(initiatorID, receiverID)
 }

@@ -12,6 +12,7 @@ export function useChatBuild(addMessageStorage) {
       console.log(name, participation, type)
       let chatProperties = null
       if (type == 'group') {
+        console.log(name)
         chatProperties = createNewChatObject(name,id,participation, type)
       } else {
         const displayName = name

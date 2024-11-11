@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"go-chat-app/dbmanager/store"
 	"log"
 	"strings"
 )
@@ -26,7 +27,7 @@ const (
 
 var kindHandlers = map[Kind]func(cl *Client) ActionOnType{
 
-	NEW_MESSAGE:      func(cl *Client) ActionOnType { return &UserMessage{UserID: cl.index} },
+	NEW_MESSAGE:      func(cl *Client) ActionOnType { return &UserMessage{UserID: cl.index, Username: cl.username} },
 	NEW_CHAT:         func(cl *Client) ActionOnType { return &NewGroupChat{CreatorID: cl.index} },
 	SEARCH_QUERY:     func(cl *Client) ActionOnType { return &SearchQuery{UserID: cl.index} },
 	NEW_PRIVATE_CHAT: func(cl *Client) ActionOnType { return &NewPrivateChat{InitiatorID: cl.index} },
@@ -57,6 +58,7 @@ type UserMessage struct {
 	Body     string `json:"body"`
 	ChatName string `json:"chat_name"`
 	UserID   string `json:"user_id"`
+	Username string `json:"username"`
 }
 
 type Subscription struct {
@@ -72,11 +74,13 @@ type SearchQuery struct {
 
 type NewGroupChat struct {
 	Name      string `json:"chat_name"`
+	ID        string `json:"chat_id"`
 	CreatorID string `json:"creator_id"`
 }
 
 type NewPrivateChat struct {
-	ChatName    string `json:"chat_id"`
+	ChatName    string `json:"chat_name"`
+	ChatID      int    `json:"chat_id"`
 	ReceiverID  string `json:"receiver_id"`
 	InitiatorID string `json:"initiator_id"`
 	Username    string `json:"init_username"`
@@ -91,6 +95,8 @@ type Error struct {
 func (um *UserMessage) perform(jsonEnv []byte, msgT int, cl *Client) {
 	chatID := um.ChatName
 	chat := chatList.Chats[chatID]
+	fmt.Println("Message sent to chat:", chat)
+	fmt.Println(chat.members)
 	for _, cl := range chat.members {
 		sendWsResponse(jsonEnv, cl, msgT)
 	}
@@ -113,8 +119,13 @@ func (jn *Subscription) perform(jsonEnv []byte, msgT int, cl *Client) {
 }
 
 func (newPrCh *NewPrivateChat) perform(jsonEnv []byte, msgT int, cl *Client) {
-	receiverSocket, ok := connSockets.Connections[newPrCh.ReceiverID]
+	newChat := chatList.CreateChat(newPrCh.ChatName)
+	newChat.AddMember(cl)
+	split := strings.Split(newPrCh.ChatName, "_")
+	receiverName := split[1]
+	receiverSocket, ok := connSockets.Connections[receiverName]
 	if ok {
+		newChat.AddMember(receiverSocket)
 		sendWsResponse(jsonEnv, receiverSocket, msgT)
 	}
 	sendWsResponse(jsonEnv, cl, msgT)
@@ -123,7 +134,6 @@ func (newPrCh *NewPrivateChat) perform(jsonEnv []byte, msgT int, cl *Client) {
 func (m *UserMessage) save() (interface{}, error) {
 	messageHandler := dbManager.initializeDBhandler("message")
 	err := messageHandler.CreateMessageHandler(m.Body, m.ChatName, m.UserID)
-	fmt.Println("Result ENV:", m)
 
 	return m, err
 }
@@ -131,13 +141,13 @@ func (m *UserMessage) save() (interface{}, error) {
 func (nc *NewGroupChat) save() (interface{}, error) {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	subHandler := dbManager.initializeDBhandler("subscription")
-	chatName, err := chatHandler.CreateChatHandler(nc.Name, nc.CreatorID)
-
+	id, err := chatHandler.CreateChatHandler(nc.Name, nc.CreatorID)
+	nc.ID = id
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
 	}
-	err = subHandler.SaveSubHandler(nc.CreatorID, chatName)
+	err = subHandler.SaveSubHandler(nc.CreatorID, id)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
@@ -154,7 +164,6 @@ func (sub *Subscription) save() (interface{}, error) {
 func (sq *SearchQuery) save() (interface{}, error) {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	userHandler := dbManager.initializeDBhandler("user")
-	fmt.Println("SEARCH QUERY USER ID", sq.UserID)
 	result := make(map[string]interface{})
 	resUsers, err := userHandler.SearchUser(sq.Input, sq.UserID)
 
@@ -173,7 +182,6 @@ func (sq *SearchQuery) save() (interface{}, error) {
 	result["users"] = resUsers
 	result["chats"] = resChats
 	sq.SearchResults = result
-	fmt.Println("Result ENV:", sq)
 
 	return sq, nil
 }
@@ -182,30 +190,33 @@ func (newPrCh *NewPrivateChat) save() (interface{}, error) {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	messageHandler := dbManager.initializeDBhandler("message")
 
-	chatID, err := chatHandler.CreatePrivateChatHandler(newPrCh.InitiatorID, newPrCh.ReceiverID)
+	chatInfo, err := chatHandler.CreatePrivateChatHandler(newPrCh.InitiatorID, newPrCh.ReceiverID)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	data, _ := chatInfo.(store.PrivateChatInfo)
+
+	chatID := data.ID
+	chatName := data.Name
+
 	messageData := UserMessage{
 		Body:     newPrCh.Message,
 		UserID:   newPrCh.InitiatorID,
-		ChatName: chatID,
+		ChatName: chatName,
 	}
 
 	err = messageHandler.CreateMessageHandler(messageData.Body, messageData.ChatName, messageData.UserID)
 	if err != nil {
 		log.Fatal(err)
 	}
-	newPrCh.ChatName = chatID
+	newPrCh.ChatName = chatName
+	newPrCh.ChatID = chatID
 	return newPrCh, nil
 }
 
 func HandleWriteToWebSocket(outEnv OutEnvelope, msgT int, cl *Client) {
 	jsonEnv, err := json.Marshal(outEnv)
-	fmt.Println(string(jsonEnv))
-	fmt.Println(cl.index, "client index in handle response env")
-	fmt.Println("slice of sockets:", connSockets.Connections)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -227,7 +238,7 @@ func sendWsResponse(p []byte, cl *Client, msgT int) {
 		log.Println("Error writing to WebSocket:", err)
 		return
 	}
-	fmt.Println("Message sent successfully to client", string(p))
+	fmt.Println("Message sent successfully to client", cl, "Message:", string(p))
 }
 
 func processEnvelope(p []byte, cl *Client) OutEnvelope {

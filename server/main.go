@@ -59,7 +59,6 @@ func initializeWSconn(w http.ResponseWriter, r *http.Request) *Client {
 	usernameCookie, _ := r.Cookie("username")
 	token, _ := r.Cookie("token")
 	userIndex := fetchUserID(token.Value)
-	fmt.Println(r.Cookies())
 	subHandler := dbManager.initializeDBhandler("subscription")
 	subs, err := subHandler.LoadSubscriptions(userIndex)
 	if err != nil {

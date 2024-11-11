@@ -1,5 +1,5 @@
 
-function ChatList({chats, handleSelect, handleJoin}) {
+function ChatList({chats, handleSelect, handleJoin, currentUsername}) {
   const chatKeys = Object.keys(chats)
   console.log(chats)
   return (
@@ -10,7 +10,7 @@ function ChatList({chats, handleSelect, handleJoin}) {
 
     {chatKeys.map((key) => (
        
-        <button key={key} onClick= {() => {handleSelect(key) }} name={key}> {chats[key].name } </button>)
+        <button key={key} onClick= {() => {handleSelect(key) }} name={key}> { key.split('_').filter((el) => (el != currentUsername)).join(' ') } </button>)
     )}
       
     </div>
