@@ -29,7 +29,9 @@ func main() {
 		return
 	}
 
-	chatList.initializeRooms()
+	chatDBhandler := dbManager.initializeDBhandler("chat")
+	chatList.initializeRooms(&chatDBhandler)
+
 	connSockets.initialize()
 	err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler(AuthHandler{}))
 

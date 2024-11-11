@@ -8,13 +8,15 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
-	golang.org/x/crypto v0.28.0
+	github.com/stretchr/testify v1.9.0
+	golang.org/x/crypto v0.29.0
 )
 
 require (
-	github.com/campoy/jsonenums v0.0.0-20201009151607-0f0230183423 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
-	golang.org/x/tools v0.24.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

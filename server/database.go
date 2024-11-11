@@ -14,6 +14,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
+type ChatDBhandler interface {
+	GetAllChats() ([]string, error)
+}
+
 type sqlDBwrap struct {
 	db *sql.DB
 }

@@ -36,10 +36,9 @@ func (chL *ChatList) CreateChat(chName string) *Chat {
 	return chat
 }
 
-func (chL *ChatList) initializeRooms() {
-	dbChatHandler := dbManager.initializeDBhandler("chat")
-	list, _ := dbChatHandler.GetAllChats()
+func (chL *ChatList) initializeRooms(chatHandler ChatDBhandler) {
 	chL.Chats = make(map[string]*Chat)
+	list, _ := chatHandler.GetAllChats()
 	for _, chID := range list {
 		chat := &Chat{
 			ID: chID,
