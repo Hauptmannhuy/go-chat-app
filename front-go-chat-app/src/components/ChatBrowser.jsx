@@ -43,16 +43,13 @@ function ChatBrowser(){
   
 
   function selectChatHandler(chatname) {
-    console.log(chatname)
     if (!messages[chatname]) {
       addMessageStorage(chatname)
     }
     const selectedChat = chats[chatname] || searchResults[chatname]
-    console.log(selectedChat)
     setSelectedChat(selectedChat)
   }
   
-  console.log(messages)
     
 
   const createGroupChat = (name) => {
@@ -64,10 +61,8 @@ function ChatBrowser(){
 
 
   function MessageSendHandler(chatObj, input){
-    console.log(chatObj)
     if (chatObj.type == 'private' && !chatObj.participation){ 
       let id = searchProfileResults[chatObj.name].id
-      console.log(chatObj, id)
       return sendEnvelope("NEW_PRIVATE_CHAT", [id, input])
     }
     sendEnvelope("NEW_MESSAGE", [chatObj.name, input])
@@ -92,9 +87,7 @@ function ChatBrowser(){
     newChats.push(changedChat)
     setChats(newChats)
   }
-  console.log("chats", chats)
-  console.log("messages", messages)
-  console.log(chatSelected)
+
   return (
     <>
 
