@@ -33,7 +33,7 @@ func main() {
 	chatList.initializeRooms(&chatDBhandler)
 
 	connSockets.initialize()
-	err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler(AuthHandler{}))
+	err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler())
 
 	if err != nil {
 		fmt.Println(err)

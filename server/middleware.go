@@ -1,51 +1,44 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 )
 
 type AuthorizationMiddleware struct {
-	handler http.Handler
+	verifier tokenVerifier
+	handler  http.Handler
 }
 
-type AuthHandler struct{}
+type tokenVerifier func(c *http.Cookie) bool
 
-func (h AuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func NewAuthMiddlewareHandler() AuthorizationMiddleware {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/sign_in", signInHandler)
+	mux.HandleFunc("/sign_up", signUpHandler)
+	mux.HandleFunc("/chat", chatHandler)
 
-}
-
-func NewAuthMiddlewareHandler(handler http.Handler) AuthorizationMiddleware {
 	return AuthorizationMiddleware{
-		handler: handler,
+		verifier: verifyToken,
+		handler:  mux,
 	}
 }
 
 func (am AuthorizationMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	switch req.URL.Path {
-	case "/sign_in":
-		signInHandler(w, req)
-		return
-	case "/sign_up":
-		signUpHandler(w, req)
-		return
-	case "/sign_out":
-		SignOutHandler(w, req)
-		return
-	}
-
 	cookie, err := req.Cookie("token")
-	if err != nil {
-		fmt.Println("Error retrieving cookie:", err)
-		http.Redirect(w, req, "/sign_up", http.StatusSeeOther)
-		return
+	tokenValid := err == nil && am.verifier(cookie)
+	path := req.URL.Path
+	switch {
+	case !tokenValid && (path == "/sign_in" || path == "/sign_up"):
+		am.handler.ServeHTTP(w, req)
+	case !tokenValid:
+		http.Redirect(w, req, "/sign_up", http.StatusUnauthorized)
+	case tokenValid && (path == "/sign_up" || path == "/sign_in"):
+		http.Redirect(w, req, "/chat", http.StatusSeeOther)
+	case tokenValid && path == "/sign_out":
+		am.handler.ServeHTTP(w, req)
+	case tokenValid && path == "/chat":
+		am.handler.ServeHTTP(w, req)
+	default:
+		http.NotFound(w, req)
 	}
-
-	ok := verifyToken(cookie)
-	if !ok {
-		http.Redirect(w, req, "/sign_up", http.StatusSeeOther)
-		return
-	}
-
-	chatHandler(w, req)
 }
