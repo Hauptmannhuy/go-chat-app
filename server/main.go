@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,9 +9,12 @@ import (
 
 	_ "github.com/golang-migrate/migrate/v4/source/file" // Import the file source driver
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/gorilla/websocket"
 )
+
+var redisDB *redis.Client
 
 var upgrader = websocket.Upgrader{
 
@@ -23,7 +26,24 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
-	err := dbManager.openAndMigrateDB()
+
+	redisDB = redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
+		Protocol: 3,
+	})
+
+	redisDB.Set(context.Background(), "test", "value", 0)
+
+	s, err := redisDB.Get(context.Background(), "test").Result()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(s)
+
+	err = dbManager.openAndMigrateDB()
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -94,20 +114,20 @@ func clientMessages(cl *Client) {
 
 		fmt.Println(cl.connected)
 
-		messageType, p, err := peer.ReadMessage()
+		wsMessageType, p, err := peer.ReadMessage()
 		cl.mutex.Unlock()
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		outEnv := processEnvelope(p, cl)
-		outEnv.Data, err = dbManager.handleDatabase(outEnv)
+		data, dataType := processMessage(p, cl)
+		data, err = dbManager.handleDatabase(data)
 		if err != nil {
-			errorMessg := Error{err.Error()}
-			outEnv = OutEnvelope{"ERROR", errorMessg}
+			data = Error{err.Error()}
+			dataType = "ERROR"
 			fmt.Println(err)
 		}
-		HandleWriteToWebSocket(outEnv, messageType, cl)
+		HandleWriteToWebSocket(dataType, data, wsMessageType, cl)
 
 	}
 }
@@ -128,11 +148,11 @@ func (hub *Hub) removeClient(cl *Client) {
 }
 
 func (h *Hub) AddHubMember(c *Client) {
-	fmt.Println("connected clients:", h.Connections)
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
 	h.Connections[c.username] = c
 
+	fmt.Println("connected clients:", h.Connections)
 }
 
 func (cl *Client) sendSubscribedChats() {
@@ -151,16 +171,8 @@ func (cl *Client) sendSubscribedChats() {
 	chatContainer := make(map[string]interface{})
 	chatContainer["private"] = privateChatData
 	chatContainer["group"] = groupChatData
-	var env OutEnvelope
-	env.Type = "LOAD_SUBS"
-	env.Data = chatContainer
 
-	j, err := json.Marshal(env)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	sendWsResponse(j, cl, websocket.TextMessage)
+	sendWsResponse(chatContainer, "LOAD_SUBS", cl, websocket.TextMessage)
 }
 
 func (cl *Client) sendMessageHistory() {
@@ -170,16 +182,7 @@ func (cl *Client) sendMessageHistory() {
 		fmt.Println(err)
 		return
 	}
-	var env = OutEnvelope{
-		Type: "LOAD_MESSAGES",
-		Data: data,
-	}
-	json, err := json.Marshal(env)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	sendWsResponse(json, cl, websocket.TextMessage)
+	sendWsResponse(data, "LOAD_MESSAGES", cl, websocket.TextMessage)
 }
 
 func (h *Hub) initialize() {

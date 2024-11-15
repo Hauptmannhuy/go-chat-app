@@ -41,7 +41,7 @@ func (s *Service) SearchChat(input, userID string) (interface{}, error) {
 	return s.ChatStore.SearchChat(input, userID)
 }
 
-func (s *Service) GetAllChats() ([]string, error) {
+func (s *Service) GetAllChats() (store.Chats, error) {
 	return s.ChatStore.GetChats()
 }
 

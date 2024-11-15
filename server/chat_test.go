@@ -1,6 +1,7 @@
 package main
 
 import (
+	"go-chat-app/dbmanager/store"
 	"sync"
 	"testing"
 )
@@ -13,9 +14,9 @@ func TestCreateChat(t *testing.T) {
 
 		result := chatList.CreateChat(name)
 		expected := &Chat{
-			ID: name,
+			Name: name,
 		}
-		if result.ID != expected.ID {
+		if result.Name != expected.Name {
 			t.Errorf("Fail")
 		}
 	})
@@ -51,12 +52,17 @@ func TestConcurrentCreateChat(t *testing.T) {
 type MockedDatabase struct{}
 
 type MockedChatHandler interface {
-	GetChats() ([]string, error)
+	GetChats() (store.Chats, error)
 }
 
-func (mdb MockedDatabase) GetAllChats() ([]string, error) {
-	chatNames := []string{"chat 1", "chat 2"}
-	return chatNames, nil
+func (mdb MockedDatabase) GetAllChats() (store.Chats, error) {
+	chats := store.Chats{"chat 1": store.ChatInfo{
+		Name: "chat 1",
+	},
+		"chat 2 ": store.ChatInfo{
+			Name: "chat 2",
+		}}
+	return chats, nil
 }
 
 func TestInitializeRooms(t *testing.T) {
@@ -100,7 +106,7 @@ func TestAddClientToSubRooms(t *testing.T) {
 
 func TestConcurrentAddClientToSubRooms(t *testing.T) {
 	var chatList ChatList
-	chatList.Chats = map[string]*Chat{"chat 1": &Chat{ID: "chat 1"}}
+	chatList.Chats = map[string]*Chat{"chat 1": &Chat{Name: "chat 1", members: map[string]*Client{}}}
 	wg := sync.WaitGroup{}
 	clients := []*Client{}
 	names := []string{"joe", "bill", "grigorovich", "mitya"}

@@ -11,7 +11,7 @@ import (
 //go:generate jsonenums -type=Kind
 
 type ActionOnType interface {
-	perform(p []byte, msgT int, cl *Client)
+	perform(messageType string, wsMsgType int, cl *Client)
 	save() (interface{}, error)
 }
 
@@ -59,6 +59,7 @@ type UserMessage struct {
 	ChatName string `json:"chat_name"`
 	UserID   string `json:"user_id"`
 	Username string `json:"username"`
+	State    string `json:"state"`
 }
 
 type Subscription struct {
@@ -92,33 +93,45 @@ type Error struct {
 	Message string
 }
 
-func (um *UserMessage) perform(jsonEnv []byte, msgT int, cl *Client) {
+func (um *UserMessage) perform(messageType string, wsMsgType int, sender *Client) {
 	chatID := um.ChatName
 	chat := chatList.Chats[chatID]
+	onlineUsers := chat.checkOnline()
 	fmt.Println("Message sent to chat:", chat)
-	fmt.Println(chat.members)
-	for _, cl := range chat.members {
-		sendWsResponse(jsonEnv, cl, msgT)
+	fmt.Println(len(chat.members))
+	for _, key := range chat.subscribers {
+		if userOnline := onlineUsers[key]; userOnline {
+			userSocket := chat.members[key]
+			if userSocket.index == sender.index {
+				um.State = "delivered"
+			} else {
+				um.State = "unseen"
+			}
+
+			sendWsResponse(um, messageType, userSocket, wsMsgType)
+		} else {
+			fmt.Println("Caching unseen message to REDIS")
+		}
 	}
 }
 
-func (ngc *NewGroupChat) perform(jsonEnv []byte, msgT int, cl *Client) {
-	sendWsResponse(jsonEnv, cl, msgT)
+func (ngc *NewGroupChat) perform(messageType string, wsMsgType int, cl *Client) {
 	chatList.CreateChat(ngc.Name)
 	chat := chatList.Chats[ngc.Name]
 	chat.AddMember(cl)
+	sendWsResponse(ngc, messageType, cl, wsMsgType)
 }
 
-func (sc *SearchQuery) perform(jsonEnv []byte, msgT int, cl *Client) {
-	sendWsResponse(jsonEnv, cl, msgT)
+func (sc *SearchQuery) perform(messageType string, wsMsgType int, cl *Client) {
+	sendWsResponse(sc, messageType, cl, wsMsgType)
 }
 
-func (jn *Subscription) perform(jsonEnv []byte, msgT int, cl *Client) {
+func (jn *Subscription) perform(messageType string, wsMsgType int, cl *Client) {
 	chat := chatList.Chats[jn.ChatID]
 	chat.AddMember(cl)
 }
 
-func (newPrCh *NewPrivateChat) perform(jsonEnv []byte, msgT int, cl *Client) {
+func (newPrCh *NewPrivateChat) perform(messageType string, wsMsgType int, cl *Client) {
 	newChat := chatList.CreateChat(newPrCh.ChatName)
 	newChat.AddMember(cl)
 	split := strings.Split(newPrCh.ChatName, "_")
@@ -126,9 +139,9 @@ func (newPrCh *NewPrivateChat) perform(jsonEnv []byte, msgT int, cl *Client) {
 	receiverSocket, ok := connSockets.Connections[receiverName]
 	if ok {
 		newChat.AddMember(receiverSocket)
-		sendWsResponse(jsonEnv, receiverSocket, msgT)
+		sendWsResponse(newPrCh, messageType, receiverSocket, wsMsgType)
 	}
-	sendWsResponse(jsonEnv, cl, msgT)
+	sendWsResponse(newPrCh, messageType, cl, wsMsgType)
 }
 
 func (m *UserMessage) save() (interface{}, error) {
@@ -215,33 +228,38 @@ func (newPrCh *NewPrivateChat) save() (interface{}, error) {
 	return newPrCh, nil
 }
 
-func HandleWriteToWebSocket(outEnv OutEnvelope, msgT int, cl *Client) {
-	jsonEnv, err := json.Marshal(outEnv)
-	if err != nil {
-		fmt.Println(err)
+func HandleWriteToWebSocket(messageType string, data interface{}, msgT int, cl *Client) {
+	if errorMessage, ok := data.(Error); ok {
+		errorMessage.handleError(data, cl, msgT)
 		return
 	}
-
-	if errorMessage, ok := outEnv.Data.(Error); ok {
-		errorMessage.handleError(jsonEnv, cl, msgT)
+	action, ok := data.(ActionOnType)
+	if !ok {
+		// fmt.Println(err)
 		return
 	}
-
-	action := outEnv.Data.(ActionOnType)
-	action.perform(jsonEnv, msgT, cl)
+	action.perform(messageType, msgT, cl)
 
 }
 
-func sendWsResponse(p []byte, cl *Client, msgT int) {
+func sendWsResponse(message interface{}, messageType string, cl *Client, wsMsgType int) {
+	outEnv := OutEnvelope{
+		Type: messageType,
+		Data: message,
+	}
+	p, err := json.Marshal(outEnv)
+	if err != nil {
+		log.Fatal("error in send ws response", err)
+	}
 	socket := cl.socket
-	if err := socket.WriteMessage(msgT, p); err != nil {
+	if err := socket.WriteMessage(wsMsgType, p); err != nil {
 		log.Println("Error writing to WebSocket:", err)
 		return
 	}
 	fmt.Println("Message sent successfully to client", cl, "Message:", string(p))
 }
 
-func processEnvelope(p []byte, cl *Client) OutEnvelope {
+func processMessage(p []byte, cl *Client) (interface{}, string) {
 	fmt.Println("raw json:", string(p))
 	env := InEnvelope{}
 	err := json.Unmarshal(p, &env)
@@ -252,40 +270,34 @@ func processEnvelope(p []byte, cl *Client) OutEnvelope {
 			msg := Error{
 				Message: err.Error(),
 			}
-			return OutEnvelope{
-				Type: "UNKNOWN_TYPE",
-				Data: msg,
-			}
+			return msg, "UNKNOWN_TYPE"
 		} else {
 			log.Fatal(err)
 		}
 	}
 
 	msg := kindHandlers[env.Type](cl)
-
 	err = json.Unmarshal(p, msg)
+
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	return OutEnvelope{
-		Type: env.Type.toValue(),
-		Data: msg,
-	}
+	return msg, env.Type.toValue()
 }
 
-func (dbm *sqlDBwrap) handleDatabase(env OutEnvelope) (interface{}, error) {
-	if action, ok := env.Data.(ActionOnType); ok {
+func (dbm *sqlDBwrap) handleDatabase(data interface{}) (interface{}, error) {
+	if action, ok := data.(ActionOnType); ok {
 		res, err := action.save()
 		return res, err
 	} else {
 		fmt.Println("No write to database")
-		return env.Data, nil
+		return data, nil
 	}
 }
 
-func (e *Error) handleError(p []byte, cl *Client, msgT int) {
-	sendWsResponse(p, cl, msgT)
+func (e *Error) handleError(errorMessage interface{}, cl *Client, msgT int) {
+	sendWsResponse(errorMessage, "Error", cl, msgT)
 }
 
 func isTypeUnknown(err string) bool {

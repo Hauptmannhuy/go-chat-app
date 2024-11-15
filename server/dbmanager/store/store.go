@@ -42,6 +42,15 @@ type PrivateChatInfo struct {
 	ID   int    `json:"id"`
 }
 
+type ChatInfo struct {
+	Name        string
+	ID          int
+	Subscribers []string
+	ChatType    string
+}
+
+type Chats map[string]ChatInfo
+
 type SearchResults []interface{}
 
 type UserStore interface {
@@ -59,7 +68,7 @@ type ChatStore interface {
 	LoadSubscribedChats(username string) ([]interface{}, error)
 	SaveChat(name, creatorID string) (string, error)
 	SavePrivateChat(u1id, u2id string) (interface{}, error)
-	GetChats() ([]string, error)
+	GetChats() (Chats, error)
 	SearchChat(input, userID string) (interface{}, error)
 	LoadSubscribedPrivateChats(id string) (interface{}, error)
 }
@@ -73,33 +82,95 @@ type SQLstore struct {
 	DB *sql.DB
 }
 
-func (s *SQLstore) GetChats() ([]string, error) {
+func (s *SQLstore) GetChats() (Chats, error) {
+	var result = make(Chats)
+
 	combinedRows, err := s.DB.Query(
-		`SELECT chat_name, 'private' AS chat_type
+		`SELECT chat_name, id, 'private' AS chat_type
 		FROM private_chats
 		UNION ALL
-		SELECT chat_name, 'group' AS chat_type
+		SELECT chat_name, id, 'group' AS chat_type
 		FROM group_chats;
 	`)
+
 	if err != nil {
 		fmt.Println("Error getting private chats", err)
 		return nil, err
 	}
 
-	var res []string
-
 	for combinedRows.Next() {
 		fmt.Println("got")
 		var name string
 		var chatType string
-		err := combinedRows.Scan(&name, &chatType)
+		var ID int
+
+		err := combinedRows.Scan(&name, &ID, &chatType)
 		if err != nil {
 			fmt.Println("error during scan of getting chats", err)
 		}
-		res = append(res, name)
+		var subscribers []string
+		if chatType == "private" {
+			rows, err := s.DB.Query(`
+			SELECT u1.username AS username1, u2.username AS username2
+			FROM private_chats AS prc
+			JOIN users AS u1
+			ON u1.id = prc.user1_id
+			JOIN users AS u2
+			ON u2.id = prc.user2_id
+			WHERE prc.id = $1 `, ID)
+
+			if err != nil {
+				log.Fatal("error in GetChats:", err)
+			}
+
+			defer rows.Close()
+			for rows.Next() {
+				var username1 string
+				var username2 string
+				err := rows.Scan(&username1, &username2)
+				if err != nil {
+					log.Fatal("error in GetChats:", err)
+				}
+				subscribers = append(subscribers, username1, username2)
+
+			}
+			result[name] = ChatInfo{
+				Name:        name,
+				ID:          ID,
+				ChatType:    chatType,
+				Subscribers: subscribers,
+			}
+
+		} else {
+			rows, err := s.DB.Query(`
+			SELECT u.username 
+			FROM users AS u
+			JOIN group_chat_subs AS gcs
+			ON gcs.user_id = u.id
+			WHERE gcs.chat_id = $1 `, ID)
+
+			if err != nil {
+				log.Fatal("error in GetChats:", err)
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var name string
+				err := rows.Scan(&name)
+				if err != nil {
+					log.Fatal("error in GetChats:", err)
+				}
+				subscribers = append(subscribers, name)
+			}
+		}
+		result[name] = ChatInfo{
+			Name:        name,
+			ID:          ID,
+			ChatType:    chatType,
+			Subscribers: subscribers,
+		}
+		fmt.Println(result[name])
 	}
-	fmt.Println("res", res)
-	return res, nil
+	return result, nil
 }
 
 func (s *SQLstore) SaveChat(name, creatorID string) (string, error) {
@@ -148,7 +219,6 @@ func (s *SQLstore) retrieveLastMessageID(chatID string) (int, error) {
 
 func (s *SQLstore) SaveMessage(body, chatName, userID string) error {
 	messageID, err := s.retrieveLastMessageID(chatName)
-
 	if err != nil {
 		return err
 	}
@@ -163,7 +233,6 @@ func (s *SQLstore) SaveMessage(body, chatName, userID string) error {
 func (s *SQLstore) GetChatsMessages(subs []string) (interface{}, error) {
 	chats := make(map[string][]interface{})
 	queryResults := make(map[string]bool)
-
 	for _, key := range subs {
 		queryResults[key] = false
 	}
@@ -265,10 +334,6 @@ func (s *SQLstore) SaveAccount(name, email, pass string) (string, error) {
 	}
 	tr.Commit()
 
-	if err != nil {
-		log.Fatal(err)
-		return "", err
-	}
 	row := s.DB.QueryRow(`
 		SELECT last_value from users_id_seq
 	`)
@@ -339,6 +404,7 @@ func (s *SQLstore) LoadSubscriptions(userID string) ([]string, error) {
 }
 
 func (s *SQLstore) SaveSubscription(userID, chatID string) error {
+	fmt.Println("393", userID, chatID)
 	tr, _ := s.DB.Begin()
 	_, err := tr.Exec(`
 		INSERT INTO group_chat_subs (user_id, chat_id) VALUES ($1, $2)

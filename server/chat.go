@@ -1,13 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"sync"
 )
 
 type Chat struct {
-	members []*Client
-	ID      string `json:"chat_id"`
-	mutex   sync.Mutex
+	members     map[string]*Client
+	subscribers []string
+	Name        string `json:"chat_id"`
+	mutex       sync.Mutex
 }
 
 type PrivateChat struct {
@@ -30,7 +32,8 @@ func (chL *ChatList) CreateChat(chName string) *Chat {
 	defer chL.mutex.Unlock()
 
 	chat := &Chat{
-		ID: chName,
+		Name:    chName,
+		members: map[string]*Client{},
 	}
 	chL.Chats[chName] = chat
 	return chat
@@ -39,11 +42,14 @@ func (chL *ChatList) CreateChat(chName string) *Chat {
 func (chL *ChatList) initializeRooms(chatHandler ChatDBhandler) {
 	chL.Chats = make(map[string]*Chat)
 	list, _ := chatHandler.GetAllChats()
-	for _, chID := range list {
+
+	for _, chat := range list {
 		chat := &Chat{
-			ID: chID,
+			Name:        chat.Name,
+			subscribers: chat.Subscribers,
+			members:     make(map[string]*Client),
 		}
-		chL.Chats[chID] = chat
+		chL.Chats[chat.Name] = chat
 	}
 }
 
@@ -53,11 +59,25 @@ func (chL *ChatList) addClientToSubRooms(cl *Client) {
 	for _, chID := range cl.subs {
 		chat := chL.Chats[chID]
 		chat.AddMember(cl)
+		fmt.Println("Client added", chat.Name, chat.members)
 	}
 }
 
-func (c *Chat) AddMember(cl *Client) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	c.members = append(c.members, cl)
+func (ch *Chat) AddMember(cl *Client) {
+	ch.mutex.Lock()
+	defer ch.mutex.Unlock()
+	ch.members[cl.username] = cl
+}
+
+func (c *Chat) checkOnline() map[string]bool {
+	resultUsers := make(map[string]bool)
+	for _, username := range c.subscribers {
+		_, ok := c.members[username]
+		if !ok {
+			resultUsers[username] = false
+		} else {
+			resultUsers[username] = true
+		}
+	}
+	return resultUsers
 }

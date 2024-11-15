@@ -15,7 +15,7 @@ import (
 )
 
 type ChatDBhandler interface {
-	GetAllChats() ([]string, error)
+	GetAllChats() (store.Chats, error)
 }
 
 type sqlDBwrap struct {

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"go-chat-app/dbmanager/store"
 )
 
 func (h *Handler) CreateChatHandler(name, creatorID string) (string, error) {
@@ -19,7 +20,7 @@ func (h *Handler) CreateChatHandler(name, creatorID string) (string, error) {
 	return str, err
 }
 
-func (h *Handler) GetAllChats() ([]string, error) {
+func (h *Handler) GetAllChats() (store.Chats, error) {
 	return h.ChatService.GetAllChats()
 }
 
