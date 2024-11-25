@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,8 +13,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var redisDB *redis.Client
-
 var upgrader = websocket.Upgrader{
 
 	ReadBufferSize:  1024,
@@ -26,24 +23,15 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
-
-	redisDB = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "",
-		DB:       0,
-		Protocol: 3,
-	})
-
-	redisDB.Set(context.Background(), "test", "value", 0)
-
-	s, err := redisDB.Get(context.Background(), "test").Result()
-
-	if err != nil {
-		log.Fatal(err)
+	redisManager = redisDBwrap{
+		redis: redis.NewClient(&redis.Options{
+			Addr:     "localhost:6379",
+			Password: "",
+			DB:       0,
+			Protocol: 3,
+		}),
 	}
-	fmt.Println(s)
-
-	err = dbManager.openAndMigrateDB()
+	err := dbManager.openAndMigrateDB()
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -172,17 +160,7 @@ func (cl *Client) sendSubscribedChats() {
 	chatContainer["private"] = privateChatData
 	chatContainer["group"] = groupChatData
 
-	sendWsResponse(chatContainer, "LOAD_SUBS", cl, websocket.TextMessage)
-}
-
-func (cl *Client) sendMessageHistory() {
-	dbMessageHandler := dbManager.initializeDBhandler("message")
-	data, err := dbMessageHandler.GetChatsMessages(cl.subs)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	sendWsResponse(data, "LOAD_MESSAGES", cl, websocket.TextMessage)
+	writeToSocket(chatContainer, "LOAD_SUBS", cl, websocket.TextMessage)
 }
 
 func (h *Hub) initialize() {

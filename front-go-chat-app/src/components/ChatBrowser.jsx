@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 
+import "../assets/chatBrowser.css"
 import Chat from "./Chat";
 import ChatList from "./ChatList";
 import SignOutButton from "./SignOutButton";
@@ -12,35 +13,41 @@ import { useWebsocket } from "../modules/useWebsocket";
 import { useChatBuild } from "../modules/useChatBuild";
 import { useMessageBuild } from "../modules/useMessageBuild";
 import { useSearchQuery } from "../modules/useSearchQuery";
-
+import { useIndexedDB } from "../modules/useIndexedDB";
 function ChatBrowser(){ 
+
   const userAuthenticated = () => {
     if (document.cookie != '') return false;
     return true;
   }
-
   const getUsernameCookie = () =>  document.cookie.split('=')[1]
 
+  const {messages, addMessageStorage, handleMessageLoad, addMessage} = useMessageBuild()
+  const {searchResults,searchProfileResults, handleSearchQuery, setEmptyInput} = useSearchQuery()
+  const {chats, handleInitChatLoad, addChat} = useChatBuild(addMessageStorage, getUsernameCookie())
+
+  
+
+  const {sendMessage, socket} = useWebsocket("/socket/chat", (ev) => {
+    processSocketMessage(ev)
+  })
+  
+  const {cacheStatus, cacheMessages} = useIndexedDB()
+
+  const {sendEnvelope, processSocketMessage} = useChatAction(sendMessage, {
+    handleInitChatLoad, addChat, cacheMessages, addMessage, handleSearchQuery
+  })
+
+   
+ 
+  console.log(cacheStatus)
   const navigate = useNavigate()
   const [chatSelected, setSelectedChat] = useState(null)
   const [creationChatInvoked, setInvokeStatus] = useState(false)
   const [creationInput, setCreationInput] = useState("")
   
-  const {messages, addMessageStorage, handleMessageLoad, addMessage} = useMessageBuild()
-  const {searchResults,searchProfileResults, handleSearchQuery, setEmptyInput} = useSearchQuery()
-  const {chats, handleInitChatLoad, addChat} = useChatBuild(addMessageStorage, getUsernameCookie())
+ 
 
-
-  const {sendMessage} = useWebsocket("/socket/chat", (ev) => {
-    processSocketMessage(ev)
-  })
-
-  const {sendEnvelope, processSocketMessage} = useChatAction(sendMessage, {
-    handleInitChatLoad, addChat, handleMessageLoad, addMessage, handleSearchQuery
-  })
-
-
-  
 
   function selectChatHandler(chatname) {
     if (!messages[chatname]) {
@@ -88,36 +95,20 @@ function ChatBrowser(){
     setChats(newChats)
   }
 
+  useEffect(() => {
+    console.log("123")
+    console.log(socket.current)
+    if (socket.current != null) {
+      console.log("FETCH MESSAGES")
+      const message = {type: "LOAD_MESSAGES"}
+      sendMessage(message)
+    } 
+  }, [socket.current])
+
   return (
     <>
 
     {userAuthenticated ? (< SignOutButton/>) : null}
-
-    <div className="search-section">
-
-    <p>
-    <Search
-    searchHandler={search}/>
-    </p>
-
-   { searchResults ?  
-    <ChatList 
-     chats={searchResults}
-     handleSelect={selectChatHandler}
-     currentUsername={getUsernameCookie()}
-     /> : 
-     <ChatList
-      chats={chats}
-      handleSelect={selectChatHandler}
-      currentUsername={getUsernameCookie()}
-
-      />
-   } 
-    </div>
-
-    <div className="chat-bar">
-
-    
 
     <button onClick={() => setInvokeStatus(true)}>Create chat</button>
     
@@ -129,20 +120,63 @@ function ChatBrowser(){
     ) : (
       null
     )}
+
+
+
+      <div className="container">
+
+        <div className="left-part">
+
+
+    <div className="search-bar">
+    <Search
+    searchHandler={search}/>
     </div>
+
+
+    <div className="chat-tab section">
+
+   { searchResults ?  
+    <ChatList 
+     chats={searchResults}
+     handleSelect={selectChatHandler}
+     currentUsername={getUsernameCookie()}
+     messages={messages}
+
+     /> : 
+     <ChatList
+      chats={chats}
+      handleSelect={selectChatHandler}
+      currentUsername={getUsernameCookie()}
+      messages={messages}
+
+      />
+   } 
+    </div>
+    </div>
+
+
+    
+   <div className="right-part">
+
+  
     
     <div className="chat-display">
       {chatSelected ? (
-      <Chat
-      chat = {chatSelected}
-      msgHandler = {MessageSendHandler}
-      messages = {messages[chatSelected.name]}
-      subscribeHandler={joinChat}
-      userID = {getUsernameCookie()}/>
+        <Chat
+        chat = {chatSelected}
+        msgHandler = {MessageSendHandler}
+        messages = {messages[chatSelected.name]}
+        subscribeHandler={joinChat}
+        userID = {getUsernameCookie()}/>
       ) : (
-      <h2>Chat display</h2>
-          )}
+        <h2>Chat display</h2>
+      )}
     </div>
+      </div>
+
+    </div>
+
      
   </>
   )

@@ -1,0 +1,13 @@
+.container {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.left-part {
+  flex: 0 0 30%;
+}
+
+.right-part {
+  flex: 0 0 70%
+}

@@ -1,5 +1,5 @@
 
-export function useChatAction(sendMessage, { handleInitChatLoad, addChat,handleMessageLoad, addMessage, handleSearchQuery}){
+export function useChatAction(sendMessage, { handleInitChatLoad, addChat,cacheMessages, addMessage, handleSearchQuery}){
 
   
 
@@ -39,7 +39,6 @@ export function useChatAction(sendMessage, { handleInitChatLoad, addChat,handleM
 
   const processSocketMessage = (ev) => {
     const response = JSON.parse(ev.data)
-    console.log(ev.data)
     const actionOnType = {
       NEW_CHAT: () => {
         const {chat_name,chat_id } = response.Data
@@ -49,7 +48,6 @@ export function useChatAction(sendMessage, { handleInitChatLoad, addChat,handleM
         addMessage(response.Data)
       },
       NEW_PRIVATE_CHAT: () => {
-        console.log(response)
         const {chat_name, chat_id, message} = response.Data
         addChat(chat_name,chat_id, 'private', true)
         addMessage(message)
@@ -59,15 +57,12 @@ export function useChatAction(sendMessage, { handleInitChatLoad, addChat,handleM
         handleInitChatLoad(response.Data.private, 'private', true)
       },
        LOAD_MESSAGES: () => {
-        handleMessageLoad(response.Data)
-         console.log(response)
+        cacheMessages(response.Data)
        },
        SEARCH_QUERY: () => {
-         console.log(response.Data)
          handleSearchQuery(response.Data.SearchResults)
        },
        ERROR: () => {
-         console.log(response)
        }
     }
     actionOnType[response.Type]()

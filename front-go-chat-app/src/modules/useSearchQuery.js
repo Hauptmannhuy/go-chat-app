@@ -27,10 +27,10 @@ export function useSearchQuery(){
       const profileName = profileKeys[i]
       const profile = users[profileName].profile
       const chatProfile = users[profileName].chat
-
+      console.log(chatProfile)
       newProfiles[profileName] = profile
       if (chatProfile.handshake) {
-        newProfileChats[profileName] = createNewChatObject(
+        newProfileChats[chatProfile.chat_name] = createNewChatObject(
           chatProfile.chat_name,
           chatProfile.chat_id,
           true, 

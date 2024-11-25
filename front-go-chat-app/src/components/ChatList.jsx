@@ -1,7 +1,10 @@
+import { ChatSnippet } from "./ChatSnippet"
 
-function ChatList({chats, handleSelect, handleJoin, currentUsername}) {
+
+
+function ChatList({chats, handleSelect, handleJoin, currentUsername, messages}) {
   const chatKeys = Object.keys(chats)
-  console.log(chats)
+
   return (
   <>
 
@@ -9,8 +12,16 @@ function ChatList({chats, handleSelect, handleJoin, currentUsername}) {
     <div className="chat-list">
 
     {chatKeys.map((key) => (
-       
-        <button key={key} onClick= {() => {handleSelect(key) }} name={key}> { key.split('_').filter((el) => (el != currentUsername)).join(' ') } </button>)
+        <div className="chat-snippet" onClick={ () => {handleSelect(key) }}>
+          { 
+            < ChatSnippet 
+              name={key}
+              messages={messages}
+              currentUsername={currentUsername}/> 
+          }</div>
+      )
+
+        
     )}
       
     </div>

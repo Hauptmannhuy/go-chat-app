@@ -107,7 +107,6 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 	newClient := initializeWSconn(w, r)
 	fmt.Println(newClient)
 	newClient.sendSubscribedChats()
-	newClient.sendMessageHistory()
 	chatList.addClientToSubRooms(newClient)
 	connSockets.AddHubMember(newClient)
 	newClient.socket.SetCloseHandler(func(code int, text string) error {

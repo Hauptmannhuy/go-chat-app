@@ -15,6 +15,10 @@ type ActionOnType interface {
 	save() (interface{}, error)
 }
 
+type Cacheable interface {
+	sendCache(cl *Client, messageType string, wsMessageT int)
+}
+
 type Kind int
 
 const (
@@ -23,15 +27,17 @@ const (
 	SEARCH_QUERY
 	NEW_PRIVATE_CHAT
 	JOIN_CHAT
+	LOAD_MESSAGES
 )
 
-var kindHandlers = map[Kind]func(cl *Client) ActionOnType{
+var kindHandlers = map[Kind]func(cl *Client) interface{}{
 
-	NEW_MESSAGE:      func(cl *Client) ActionOnType { return &UserMessage{UserID: cl.index, Username: cl.username} },
-	NEW_CHAT:         func(cl *Client) ActionOnType { return &NewGroupChat{CreatorID: cl.index} },
-	SEARCH_QUERY:     func(cl *Client) ActionOnType { return &SearchQuery{UserID: cl.index} },
-	NEW_PRIVATE_CHAT: func(cl *Client) ActionOnType { return &NewPrivateChat{InitiatorID: cl.index} },
-	JOIN_CHAT:        func(cl *Client) ActionOnType { return &Subscription{UserID: cl.index} },
+	NEW_MESSAGE:      func(cl *Client) interface{} { return &UserMessage{UserID: cl.index, Username: cl.username} },
+	NEW_CHAT:         func(cl *Client) interface{} { return &NewGroupChat{CreatorID: cl.index} },
+	SEARCH_QUERY:     func(cl *Client) interface{} { return &SearchQuery{UserID: cl.index} },
+	NEW_PRIVATE_CHAT: func(cl *Client) interface{} { return &NewPrivateChat{InitiatorID: cl.index} },
+	JOIN_CHAT:        func(cl *Client) interface{} { return &Subscription{UserID: cl.index} },
+	LOAD_MESSAGES:    func(cl *Client) interface{} { return &WebSocketMessageStore{UserID: cl.index} },
 }
 
 func (k *Kind) toValue() string {
@@ -41,6 +47,7 @@ func (k *Kind) toValue() string {
 		2: "SEARCH_QUERY",
 		3: "NEW_PRIVATE_CHAT",
 		4: "JOIN_CHAT",
+		5: "LOAD_MESSAGES",
 	}
 	return keys[*k]
 }
@@ -89,6 +96,21 @@ type NewPrivateChat struct {
 	ChatType    string `json:"chat_type"`
 }
 
+type WebSocketMessageStore struct {
+	UserID string
+}
+
+func (wsMessageStore *WebSocketMessageStore) sendCache(client *Client, msgType string, wsMsgType int) {
+	fmt.Println(client)
+	dbMessageHandler := dbManager.initializeDBhandler("message")
+	data, err := dbMessageHandler.GetChatsMessages(client.subs)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	writeToSocket(data, msgType, client, wsMsgType)
+}
+
 type Error struct {
 	Message string
 }
@@ -108,7 +130,7 @@ func (um *UserMessage) perform(messageType string, wsMsgType int, sender *Client
 				um.State = "unseen"
 			}
 
-			sendWsResponse(um, messageType, userSocket, wsMsgType)
+			writeToSocket(um, messageType, userSocket, wsMsgType)
 		} else {
 			fmt.Println("Caching unseen message to REDIS")
 		}
@@ -119,11 +141,11 @@ func (ngc *NewGroupChat) perform(messageType string, wsMsgType int, cl *Client) 
 	chatList.CreateChat(ngc.Name)
 	chat := chatList.Chats[ngc.Name]
 	chat.AddMember(cl)
-	sendWsResponse(ngc, messageType, cl, wsMsgType)
+	writeToSocket(ngc, messageType, cl, wsMsgType)
 }
 
 func (sc *SearchQuery) perform(messageType string, wsMsgType int, cl *Client) {
-	sendWsResponse(sc, messageType, cl, wsMsgType)
+	writeToSocket(sc, messageType, cl, wsMsgType)
 }
 
 func (jn *Subscription) perform(messageType string, wsMsgType int, cl *Client) {
@@ -139,9 +161,9 @@ func (newPrCh *NewPrivateChat) perform(messageType string, wsMsgType int, cl *Cl
 	receiverSocket, ok := connSockets.Connections[receiverName]
 	if ok {
 		newChat.AddMember(receiverSocket)
-		sendWsResponse(newPrCh, messageType, receiverSocket, wsMsgType)
+		writeToSocket(newPrCh, messageType, receiverSocket, wsMsgType)
 	}
-	sendWsResponse(newPrCh, messageType, cl, wsMsgType)
+	writeToSocket(newPrCh, messageType, cl, wsMsgType)
 }
 
 func (m *UserMessage) save() (interface{}, error) {
@@ -228,21 +250,26 @@ func (newPrCh *NewPrivateChat) save() (interface{}, error) {
 	return newPrCh, nil
 }
 
-func HandleWriteToWebSocket(messageType string, data interface{}, msgT int, cl *Client) {
+func HandleWriteToWebSocket(messageType string, data interface{}, wsMessageT int, cl *Client) {
 	if errorMessage, ok := data.(Error); ok {
-		errorMessage.handleError(data, cl, msgT)
+		errorMessage.handleError(data, cl, wsMessageT)
 		return
 	}
 	action, ok := data.(ActionOnType)
-	if !ok {
+	if ok {
 		// fmt.Println(err)
+		action.perform(messageType, wsMessageT, cl)
 		return
 	}
-	action.perform(messageType, msgT, cl)
+
+	cacheAction, ok := data.(Cacheable)
+	if ok {
+		cacheAction.sendCache(cl, messageType, wsMessageT)
+	}
 
 }
 
-func sendWsResponse(message interface{}, messageType string, cl *Client, wsMsgType int) {
+func writeToSocket(message interface{}, messageType string, cl *Client, wsMsgType int) {
 	outEnv := OutEnvelope{
 		Type: messageType,
 		Data: message,
@@ -297,7 +324,7 @@ func (dbm *sqlDBwrap) handleDatabase(data interface{}) (interface{}, error) {
 }
 
 func (e *Error) handleError(errorMessage interface{}, cl *Client, msgT int) {
-	sendWsResponse(errorMessage, "Error", cl, msgT)
+	writeToSocket(errorMessage, "Error", cl, msgT)
 }
 
 func isTypeUnknown(err string) bool {

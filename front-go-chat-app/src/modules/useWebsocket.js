@@ -11,7 +11,7 @@ export function useWebsocket(url, onMessage) {
       if (statusCode != null){
         if (statusCode == 200) {
 
-          const websocket = new WebSocket(url)
+          const websocket =  new WebSocket(url)
           
           websocket.addEventListener("open", () => {
             socket.current = websocket
@@ -48,5 +48,5 @@ export function useWebsocket(url, onMessage) {
      checkAuth()
    }, [])
  
-  return { sendMessage }
+  return { sendMessage, socket }
 }
