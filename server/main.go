@@ -143,26 +143,6 @@ func (h *Hub) AddHubMember(c *Client) {
 	fmt.Println("connected clients:", h.Connections)
 }
 
-func (cl *Client) sendSubscribedChats() {
-
-	dbChatHandler := dbManager.initializeDBhandler("chat")
-	groupChatData, err := dbChatHandler.LoadUserSubscribedChats(cl.index)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	privateChatData, err := dbChatHandler.LoadSubscribedPrivateChats(cl.index)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	chatContainer := make(map[string]interface{})
-	chatContainer["private"] = privateChatData
-	chatContainer["group"] = groupChatData
-
-	writeToSocket(chatContainer, "LOAD_SUBS", cl, websocket.TextMessage)
-}
-
 func (h *Hub) initialize() {
 	h.Connections = make(map[string]*Client)
 }

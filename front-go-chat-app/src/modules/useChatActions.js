@@ -1,6 +1,26 @@
+import { useRef } from "react";
 
-export function useChatAction(sendMessage, { handleInitChatLoad, addChat,cacheMessages, addMessage, handleSearchQuery}){
 
+
+export function useChatAction(sendMessage, { cacheChats, addChat,cacheMessages, addMessage, handleSearchQuery, saveMessage}){
+  const fetchStatus = useRef({messageStatus: null, subStatus: null })
+
+  const delay = async (ms) => new Promise((resolve) => {setTimeout(resolve,ms) } )
+  
+  async function checkFetchStatus() {
+    let times = 0
+    while (!fetchStatus.current.messageStatus || !fetchStatus.current.subStatus){
+      if (times > 100 ){
+        throw new Error("Error fetching cache");
+      } else {
+        await delay(50)
+      }
+      times += 1
+    
+    }
+    
+    return true
+  }
   
 
   const sendEnvelope = (type, data) => {
@@ -46,6 +66,7 @@ export function useChatAction(sendMessage, { handleInitChatLoad, addChat,cacheMe
       },
       NEW_MESSAGE: () => {
         addMessage(response.Data)
+        saveMessage(response.Data)
       },
       NEW_PRIVATE_CHAT: () => {
         const {chat_name, chat_id, message} = response.Data
@@ -53,16 +74,19 @@ export function useChatAction(sendMessage, { handleInitChatLoad, addChat,cacheMe
         addMessage(message)
       },
       LOAD_SUBS: () => {
-        handleInitChatLoad(response.Data.group,'group', true)
-        handleInitChatLoad(response.Data.private, 'private', true)
+        console.log(response)
+        cacheChats(response.Data)
+        fetchStatus.current.subStatus = true
       },
        LOAD_MESSAGES: () => {
         cacheMessages(response.Data)
+        fetchStatus.current.messageStatus = true
        },
        SEARCH_QUERY: () => {
          handleSearchQuery(response.Data.SearchResults)
        },
        ERROR: () => {
+        return false
        }
     }
     actionOnType[response.Type]()
@@ -74,6 +98,6 @@ export function useChatAction(sendMessage, { handleInitChatLoad, addChat,cacheMe
 
 
 
-  return {sendEnvelope, processSocketMessage}
+  return {sendEnvelope, processSocketMessage, checkFetchStatus}
 }
 

@@ -6,6 +6,8 @@ import (
 	"go-chat-app/dbmanager/store"
 	"log"
 	"strings"
+
+	"github.com/gorilla/websocket"
 )
 
 //go:generate jsonenums -type=Kind
@@ -28,6 +30,7 @@ const (
 	NEW_PRIVATE_CHAT
 	JOIN_CHAT
 	LOAD_MESSAGES
+	LOAD_SUBS
 )
 
 var kindHandlers = map[Kind]func(cl *Client) interface{}{
@@ -38,6 +41,7 @@ var kindHandlers = map[Kind]func(cl *Client) interface{}{
 	NEW_PRIVATE_CHAT: func(cl *Client) interface{} { return &NewPrivateChat{InitiatorID: cl.index} },
 	JOIN_CHAT:        func(cl *Client) interface{} { return &Subscription{UserID: cl.index} },
 	LOAD_MESSAGES:    func(cl *Client) interface{} { return &WebSocketMessageStore{UserID: cl.index} },
+	LOAD_SUBS:        func(cl *Client) interface{} { return &WebSocketChatStore{UserID: cl.index} },
 }
 
 func (k *Kind) toValue() string {
@@ -98,6 +102,29 @@ type NewPrivateChat struct {
 
 type WebSocketMessageStore struct {
 	UserID string
+}
+
+type WebSocketChatStore struct {
+	UserID string
+}
+
+func (wsChatStore *WebSocketChatStore) sendCache(cl *Client, msgT string, wsMsgT int) {
+	dbChatHandler := dbManager.initializeDBhandler("chat")
+	groupChatData, err := dbChatHandler.LoadUserSubscribedChats(cl.index)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	privateChatData, err := dbChatHandler.LoadSubscribedPrivateChats(cl.index)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	chatContainer := make(map[string]interface{})
+	chatContainer["private"] = privateChatData
+	chatContainer["group"] = groupChatData
+
+	writeToSocket(chatContainer, "LOAD_SUBS", cl, websocket.TextMessage)
 }
 
 func (wsMessageStore *WebSocketMessageStore) sendCache(client *Client, msgType string, wsMsgType int) {

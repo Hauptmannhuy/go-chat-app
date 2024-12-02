@@ -20,6 +20,7 @@ function ChatBrowser(){
     if (document.cookie != '') return false;
     return true;
   }
+
   const getUsernameCookie = () =>  document.cookie.split('=')[1]
 
   const {messages, addMessageStorage, handleMessageLoad, addMessage} = useMessageBuild()
@@ -32,15 +33,21 @@ function ChatBrowser(){
     processSocketMessage(ev)
   })
   
-  const {cacheStatus, cacheMessages} = useIndexedDB()
+  const { cacheMessages, cacheChats, getMessages, getChats, saveMessage} = useIndexedDB(
+    () => {
+      fetchCache()
+    },
+    () => {
+      display()
+    }
+  )
 
-  const {sendEnvelope, processSocketMessage} = useChatAction(sendMessage, {
-    handleInitChatLoad, addChat, cacheMessages, addMessage, handleSearchQuery
+  const {sendEnvelope, processSocketMessage, checkFetchStatus} = useChatAction(sendMessage, {
+    cacheChats, addChat, cacheMessages, addMessage, handleSearchQuery, saveMessage
   })
 
    
  
-  console.log(cacheStatus)
   const navigate = useNavigate()
   const [chatSelected, setSelectedChat] = useState(null)
   const [creationChatInvoked, setInvokeStatus] = useState(false)
@@ -87,24 +94,52 @@ function ChatBrowser(){
     sendEnvelope(type, [name, getUsernameCookie() ])
   }
   
-  const appendNewChat = (name, type) => {
-    const previuosChats = [...chats]
-    const newChats = previuosChats.filter(el => (el.name != name))
-    const changedChat = {name: name, participation: true}
-    newChats.push(changedChat)
-    setChats(newChats)
+  // const appendNewChat = (name, type) => {
+  //   const previuosChats = [...chats]
+  //   const newChats = previuosChats.filter(el => (el.name != name))
+  //   const changedChat = {name: name, participation: true}
+  //   newChats.push(changedChat)
+  //   setChats(newChats)
+  // }
+
+
+  
+  function fetchCache() {
+    console.log("asking cache")
+    sendMessage({type: "LOAD_SUBS"})
+    sendMessage({type: "LOAD_MESSAGES"})
+    checkFetchStatus()
+    .then(() => {
+      display()
+    })
+    .catch((reason) => {
+      console.error("Error during cache fetch:", reason)
+    })
   }
 
-  useEffect(() => {
-    console.log("123")
-    console.log(socket.current)
-    if (socket.current != null) {
-      console.log("FETCH MESSAGES")
-      const message = {type: "LOAD_MESSAGES"}
-      sendMessage(message)
-    } 
-  }, [socket.current])
+  function display() {
+    const {privateChatReq, groupChatReq} = getChats()
+    const messageReq = getMessages()
 
+    privateChatReq.addEventListener("success", () => {
+      
+      const result = privateChatReq.result
+      handleInitChatLoad(result, "private", true)
+    })
+
+    groupChatReq.addEventListener("success", () => {
+      const result = groupChatReq.result
+      
+      handleInitChatLoad(result, "group", true)
+    })
+
+    
+    messageReq.addEventListener("success", () => {
+      handleMessageLoad(messageReq.result)
+    })
+
+  }
+ 
   return (
     <>
 

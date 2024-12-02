@@ -1,13 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
-export function useIndexedDB() {
+      /**
+       * Returns objectStore.
+       * @param {function(): Promise} onUpgrade 
+       * @param {function} onConnect
+       * @returns {void}
+       */
+
+export function useIndexedDB(onUpgrade, onConnect) {
   const indexDB = useRef(null)
-
-  const [cacheStatus, setCacheStatus] = useState(true)
+  const dbName = 'test-db'
   useEffect(() => {
 
    async function connectDB(){
-     const openRequest = window.indexedDB.open('565763124')
+
+    console.log(onUpgrade, onConnect)
+     const openRequest = window.indexedDB.open(dbName)
      openRequest.addEventListener("error", () => {
        console.log("error connect")
       })
@@ -15,7 +23,9 @@ export function useIndexedDB() {
       openRequest.addEventListener("success", () => {
 
         indexDB.current = openRequest.result
+        // setIndexDB(openRequest.result)
         console.log("connected to IndexedDB")
+          onConnect()
       })
 
       
@@ -28,18 +38,20 @@ export function useIndexedDB() {
         messageStore.createIndex("body", "body", {unique: false})
         messageStore.createIndex("chat_name", "chat_name", {unique: false})
         messageStore.createIndex("user_id", "user_id", {unique: false} )
-        const privateChatStore = db.createObjectStore("private_chats",{keyPath: "id"}) 
-        privateChatStore.createIndex("id", "id", {unique: true})
-        privateChatStore.createIndex("user1_name", "user1_name", {unique: false})
-        privateChatStore.createIndex("user2_name", "user2_name", {unique: false})
 
-        const groupChatStore = db.createObjectStore("group_chats",{keyPath: "id"}) 
-        groupChatStore.createIndex("id", "id", {unique: true})
+        const privateChatStore = db.createObjectStore("private_chats") 
+        privateChatStore.createIndex("chat_id", "id", {unique: true})
+        privateChatStore.createIndex("user1_id", "user1_id", {unique: false})
+        privateChatStore.createIndex("user2_id", "user2_id", {unique: false})
+
+        const groupChatStore = db.createObjectStore("group_chats") 
+        groupChatStore.createIndex("chat_id", "id", {unique: true})
         groupChatStore.createIndex("name", "name", {unique: false})
         groupChatStore.createIndex("creator_id", "creator_id", {unique:false})
+        console.log("need cache")
         
-        setCacheStatus(false)
-        
+          onUpgrade()
+          
       })
 
     }
@@ -81,13 +93,44 @@ export function useIndexedDB() {
     }
   }
 
-  function cachePrivateChats(data){
-    
+  
+  function cacheChats(data){
+    const groupChatsStore = initDBtransaction("group_chats")
+    const privateChatsStore = initDBtransaction("private_chats")
+    const privateKeys = Object.keys(data.private)
+    const groupKeys= Object.keys(data.group)
+    console.log(data)
+    privateKeys.forEach(key => {
+      const chat = data.private[key]
+      groupChatsStore.add(chat, chat.chat_id)
+    });
+    groupKeys.forEach(key => {
+      const chat = data.group[key]
+      privateChatsStore.add(chat, chat.chat_id)
+    });
   }
 
-  function cacheGroupChats(data){
-
+  function getChats(){
+    console.log("get chats")
+    const groupChatsStore = initDBtransaction("group_chats")
+    const privateChatsStore = initDBtransaction("private_chats")
+    return { privateChatReq: groupChatsStore.getAll(), groupChatReq: privateChatsStore.getAll() }
   }
 
-  return {cacheStatus, cacheMessages}
+
+  function getMessages() {
+    const messageStore = initDBtransaction("messages")
+    const request = messageStore.getAll()
+    return request
+  }
+  
+  function saveMessage(message){
+    const messageStore = initDBtransaction("messages")
+    messageStore.add(message)
+  }
+
+
+
+
+  return {indexDB,cacheMessages, cacheChats, getMessages, getChats, saveMessage}
 }
