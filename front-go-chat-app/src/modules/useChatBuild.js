@@ -3,7 +3,7 @@ import { useState } from "react";
 
 
 
-export function useChatBuild(addMessageStorage) {
+export function useChatBuild() {
 
   const [chats, setChats] = useState({});
 
@@ -20,7 +20,6 @@ export function useChatBuild(addMessageStorage) {
       newChats[name] = chatProperties
       return newChats
     })
-    addMessageStorage(name)
   }
 
   function handleNewGroupChat(chat) {

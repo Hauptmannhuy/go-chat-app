@@ -1,22 +1,21 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
-import Chat from './components/Chat.jsx'
 import './index.css'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
-import Chats from './components/ChatBrowser.jsx'
-import ChatBrowser from './components/ChatBrowser.jsx'
+
+import ChatLayout from './components/ChatLayout.jsx'
 import AuthenticationForm from './components/AuthenticationForm.jsx'
 
 const router = createBrowserRouter([
   {
-    path:"/",
+    path:"/chats",
     element: <App/>
   },
-  {
-    path:"/chats",
-    element: <ChatBrowser/>
-  },
+  // {
+  //   path:"/chats",
+  //   element: <ChatLayout/>
+  // },
   {
     path: "/sign_up",
     element: <AuthenticationForm/>,
@@ -28,7 +27,7 @@ const router = createBrowserRouter([
 ])
 
 createRoot(document.getElementById('root')).render(
-  // <StrictMode>
+  <StrictMode>
     <RouterProvider router={router}/>
-  // </StrictMode>,
+   </StrictMode>,
 )

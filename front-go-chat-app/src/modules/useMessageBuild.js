@@ -13,8 +13,8 @@ export function useMessageBuild(){
   }
 
   function addMessage(message){
-    setMessageStorages((prevMessages) => {
-      const newMessages = {...prevMessages}
+    setMessageStorages((messages) => {
+      const newMessages = {...messages}
       newMessages[message.chat_name].push(message)
       return newMessages
     })
@@ -24,7 +24,6 @@ export function useMessageBuild(){
     // const chats = Object.keys(data)
     // chats.forEach((chatName) => {
       // const chatMessages = data[chatName]
-      console.log(data)
       data.forEach(message => {
         addMessage(message)
       });

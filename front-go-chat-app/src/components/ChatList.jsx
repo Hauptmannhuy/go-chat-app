@@ -2,29 +2,29 @@ import { ChatSnippet } from "./ChatSnippet"
 
 
 
-function ChatList({chats, handleSelect, handleJoin, currentUsername, messages}) {
+function ChatList({onSelect}) {
+  
   const chatKeys = Object.keys(chats)
 
   return (
   <>
-
    <h2>Chat list</h2>
     <div className="chat-list">
 
     {chatKeys.map((key) => (
-        <div className="chat-snippet" onClick={ () => {handleSelect(key) }}>
+        <div className="chat-snippet" onClick={ () => {onSelect(key) }}>
           { 
             < ChatSnippet 
               name={key}
-              messages={messages}
-              currentUsername={currentUsername}/> 
+              /> 
           }</div>
       )
 
         
     )}
-      
     </div>
+
+   
   
   </>
   )

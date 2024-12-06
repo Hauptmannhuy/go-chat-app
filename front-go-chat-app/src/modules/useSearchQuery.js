@@ -8,7 +8,6 @@ export function useSearchQuery(){
   const [searchResults, setSearchResults] = useState(null)
   const [searchProfileResults, setSearchProfileResults] = useState(null)
 
-  console.log(searchProfileResults, searchResults)
   
   function handleSearchQuery(data){
 

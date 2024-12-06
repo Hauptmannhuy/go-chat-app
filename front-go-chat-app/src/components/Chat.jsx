@@ -1,26 +1,30 @@
-import { useState } from "react"
+import { useContext, useState } from "react"
+import { GlobalContext } from "../contexts/GlobalContext"
 
 
 
-function Chat({ chat, msgHandler, subscribeHandler, messages}){
-  console.log("chat changed to", chat)
+function Chat({ onSend}){
+  const {selectedChat, messages} = useContext(GlobalContext)
+  const chatMessages = messages[selectedChat.chat_name]
+  console.log("chat changed to", selectedChat)
   const [inputValue, setInputValue] = useState("")
   
   return (
   <>
     {
-      chat.chat_type == 'group' && !chat.participation ? (
-        <button key={chat.chat_id} onClick= {() => {subscribeHandler(chat.chat_id) }}> Join {chat.chat_id} group chat </button>
+      selectedChat.chat_type == 'group' && !selectedChat.participation ? (
+        <button key={selectedChat.chat_id} onClick= {() => {subscribeHandler(selectedChat.chat_id) }}> Join {selectedChat.chat_id} group chat </button>
       ) : (
-        <div className="messages-display">
-        {messages.map((el,i) => 
-          (<p key={i}>{el.username}: {el.body}</p>)
-        )}
-      </div>
+        chatMessages ? ( <div className="messages-display">
+          {chatMessages.map((el,i) => 
+            (<p key={i}>{el.username}: {el.body}</p>)
+          )}
+        </div>) : (null)
+       
     )
   }
     
-  <button onClick={() => msgHandler(chat, inputValue)}>Send</button>
+  <button onClick={() => onSend(selectedChat, inputValue)}>Send</button>
   <input type="text" onChange={(e) => (setInputValue(e.target.value))} />
      
       </>
