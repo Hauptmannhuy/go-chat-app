@@ -1,8 +1,6 @@
-import { useContext, useRef, useState } from "react"
-import { SearchContext } from "../contexts/SearchContext"
+import { useRef } from "react"
 
-export default function SearchSection({searchHandler}){
-  const {searchResults} = useContext(SearchContext)
+export default function SearchSection({onSearch}){
   const timeout = useRef(null)
  
   function typeEventHandler(input){
@@ -10,7 +8,7 @@ export default function SearchSection({searchHandler}){
       clearTimeout(timeout.current)
     }
     timeout.current = setTimeout(()=>{
-      searchHandler(input)
+      onSearch(input)
     }, 400)
   }
   return (<>

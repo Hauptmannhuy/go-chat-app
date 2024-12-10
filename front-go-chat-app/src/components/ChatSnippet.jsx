@@ -1,5 +1,11 @@
-export function ChatSnippet({messages, name, currentUsername}) {
-  const nameFormatter = (name) => (name.split('_').filter((el) => (el != currentUsername)).join(' '))
+import { useContext } from "react"
+import { GlobalContext } from "../contexts/GlobalContext"
+import { useAuth } from "../modules/useAuth"
+
+export function ChatSnippet({name}) {
+  const {getUsername} = useAuth()
+  const {messages} = useContext(GlobalContext)
+  const nameFormatter = (name) => (name.split('_').filter((el) => (el != getUsername())).join(' '))
   const dialogue = messages[name]
   // const lastMessage = dialogue[dialogue.length-1]
   if (dialogue && dialogue.length > 0) {

@@ -1,9 +1,10 @@
-import { useRef } from "react";
+import { useContext, useRef } from "react";
+import { GlobalContext } from "../contexts/GlobalContext";
 
 
 
 export function ActionDispatcher({chatService, messageService, dbService, searchService}){
-  console.log(dbService)
+
   const fetchStatus = useRef({messageStatus: null, subStatus: null })  
   const delay = async (ms) => new Promise((resolve) => {setTimeout(resolve,ms) } )
   async function checkFetchStatus() {
@@ -29,18 +30,19 @@ export function ActionDispatcher({chatService, messageService, dbService, search
     const actionOnType = {
       NEW_CHAT: () => {
         const {chat_name,chat_id } = response.Data
-       addChat(chat_name,chat_id, 'group', true)
+        chatService.addChat(chat_name,chat_id, 'group', true)
       },
       NEW_MESSAGE: () => {
-        addMessage(response.Data)
-        saveMessage(response.Data)
+        dbService.saveMessage(response.Data)
+        messageService.addMessage(response.Data)
       },
       NEW_PRIVATE_CHAT: () => {
         const {chat_name, chat_id, message, initiator_id} = response.Data
-        addChat(chat_name,chat_id, true, 'private')
-        addMessage({message: message, chat_name: chat_name, chat_id: chat_id})
-        savePrivateChat({chat_name: chat_name, chat_id: chat_id})
-        saveMessage({body: message, chat_name: chat_name, user_id: initiator_id, message_id: 0 }) 
+        chatService.add(chat_name,chat_id, true, 'private')
+        messageService.addStorage(chat_name)
+        messageService.addMessage({message: message, chat_name: chat_name, chat_id: chat_id})
+        dbService.savePrivateChat({chat_name: chat_name, chat_id: chat_id})
+        dbService.saveMessage({body: message, chat_name: chat_name, user_id: initiator_id, message_id: 0 }) 
       },
       LOAD_SUBS: async () => {
         await dbService.cacheChats(response.Data)
@@ -52,7 +54,8 @@ export function ActionDispatcher({chatService, messageService, dbService, search
         
        },
        SEARCH_QUERY: () => {
-         handleSearchQuery(response.Data.SearchResults)
+        console.log(searchService)
+        searchService.handleSearch(response.Data.SearchResults)
        },
        ERROR: () => {
         return false
@@ -61,7 +64,7 @@ export function ActionDispatcher({chatService, messageService, dbService, search
     actionOnType[response.Type]()
   }
  
-  
+ 
   
   
 

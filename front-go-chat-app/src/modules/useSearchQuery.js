@@ -5,8 +5,8 @@ import { useChatBuild } from "./useChatBuild"
 
 export function useSearchQuery(){
   const { createNewChatObject } = useChatBuild()
-  const [searchResults, setSearchResults] = useState(null)
-  const [searchProfileResults, setSearchProfileResults] = useState(null)
+  const [searchResults, setSearchResults] = useState({})
+  const [searchProfileResults, setSearchProfileResults] = useState({})
 
   
   function handleSearchQuery(data){
@@ -56,15 +56,9 @@ export function useSearchQuery(){
          'group'
       )
     }
-    setSearchProfileResults((prev) => ({ ...prev, ...newProfiles }))
-    setSearchResults((prev) => ({ ...prev, ...newProfileChats, ...newGroupChats }))
-
+    setSearchProfileResults(() => ({  ...newProfiles }))
+    setSearchResults(() => ({  ...newProfileChats, ...newGroupChats }))
 }
 
-  const setEmptyInput = () => setSearchResults(null)
-
-
-
-
-  return {searchResults, searchProfileResults, handleSearchQuery,setEmptyInput}
+  return {searchResults, searchProfileResults, handleSearchQuery}
 }

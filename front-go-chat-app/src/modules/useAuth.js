@@ -5,7 +5,7 @@ export const useAuth = () => {
     return true;
   }
 
-  const getUsername = () =>  document.cookie.split('=')[1]
+  const getUsername = () => document.cookie.split('=')[1]
 
   
   return { userAuthenticated, getUsername}

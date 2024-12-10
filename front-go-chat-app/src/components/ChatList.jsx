@@ -1,10 +1,13 @@
+import { useContext } from "react"
 import { ChatSnippet } from "./ChatSnippet"
+import { GlobalContext } from "../contexts/GlobalContext"
 
 
 
-function ChatList({onSelect}) {
-  
-  const chatKeys = Object.keys(chats)
+function ChatList({onSelect, searchStatus}) {
+  const {chats, searchResults} = useContext(GlobalContext)
+  const currentChats = searchStatus ? searchResults : chats
+  const chatKeys = Object.keys(currentChats)
 
   return (
   <>
@@ -12,7 +15,7 @@ function ChatList({onSelect}) {
     <div className="chat-list">
 
     {chatKeys.map((key) => (
-        <div className="chat-snippet" onClick={ () => {onSelect(key) }}>
+        <div className="chat-snippet" onClick={ () => {onSelect(currentChats[key]) }}>
           { 
             < ChatSnippet 
               name={key}

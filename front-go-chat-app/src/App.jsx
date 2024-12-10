@@ -14,7 +14,7 @@ import { useSearchQuery } from './modules/useSearchQuery';
 import { useWebsocket } from './modules/useWebsocket';
 
 function App() {
-  const {searchResults, searchProfileResults, handleSearchQuery, setEmptyInput} = useSearchQuery()
+  const {searchResults, searchProfileResults, handleSearchQuery} = useSearchQuery()
   const {messages, addMessage, addMessageStorage, handleMessageLoad} = useMessageBuild()
   const {chats, addChat, handleInitChatLoad, createNewChatObject, handleNewGroupChat } = useChatBuild()
   const [selectedChat, selectChat] = useState(null)
@@ -30,6 +30,9 @@ function App() {
   }, )
 
   const {sendMessage, connectWS} = useWebsocket("/socket/chat", processSocketMessage)
+
+
+  
 
  async function fetchCache() {
     console.log("asking cache")
@@ -73,7 +76,10 @@ function App() {
            throw new Error("Error connecting to WS:", error); 
          }
          try {
-          await connectDB(fetchCache)
+         const conn = await connectDB(fetchCache)
+         if (conn) {
+          display()
+         }
          } catch (error) {
            throw new Error("Error connecting to DB", error);
          }
@@ -86,7 +92,7 @@ function App() {
 
   return (
     <>
-    <GlobalContext.Provider value={{sendMessage, selectChat, selectedChat, messages, chats}}>
+    <GlobalContext.Provider value={{sendMessage, selectChat, selectedChat, messages, chats, searchProfileResults, searchResults}}>
         <ChatLayout/>
     </GlobalContext.Provider>
     </>
