@@ -23,7 +23,7 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
-	redisManager = redisDBwrap{
+	redisManager = redisWrapper{
 		redis: redis.NewClient(&redis.Options{
 			Addr:     "localhost:6379",
 			Password: "",

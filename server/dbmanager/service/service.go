@@ -33,7 +33,7 @@ func (s *Service) RetrieveChatsMessages(subs []string) (interface{}, error) {
 	return s.MessageStore.GetChatsMessages(subs)
 }
 
-func (s *Service) CreateMessage(body, chatID, userID string) error {
+func (s *Service) CreateMessage(body, chatID, userID string) (int, error) {
 	return s.MessageStore.SaveMessage(body, chatID, userID)
 }
 
@@ -59,4 +59,8 @@ func (s *Service) CreatePrivateChat(user1id, user2id string) (interface{}, error
 
 func (s *Service) LoadSubscribedPrivateChats(id string) (interface{}, error) {
 	return s.ChatStore.LoadSubscribedPrivateChats(id)
+}
+
+func (s *Service) GetPrivateChatSubs(chatName, sender string) []string {
+	return s.SubscriptionStore.GetPrivateChatSubs(chatName, sender)
 }

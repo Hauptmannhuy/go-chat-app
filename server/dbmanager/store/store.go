@@ -60,7 +60,7 @@ type UserStore interface {
 }
 
 type MessageStore interface {
-	SaveMessage(body, chatID, userID string) error
+	SaveMessage(body, chatID, userID string) (int, error)
 	GetChatsMessages(subs []string) (interface{}, error)
 }
 
@@ -76,6 +76,8 @@ type ChatStore interface {
 type SubscriptionStore interface {
 	LoadSubscriptions(username string) ([]string, error)
 	SaveSubscription(userID, chatID string) error
+	GetPrivateChatSubs(chatName, sender string) []string
+	GetGroupChatSubs(chatName, sender string) []string
 }
 
 type SQLstore struct {
@@ -217,17 +219,17 @@ func (s *SQLstore) retrieveLastMessageID(chatID string) (int, error) {
 	return message_id, err
 }
 
-func (s *SQLstore) SaveMessage(body, chatName, userID string) error {
+func (s *SQLstore) SaveMessage(body, chatName, userID string) (int, error) {
 	messageID, err := s.retrieveLastMessageID(chatName)
 	if err != nil {
-		return err
+		return -1, err
 	}
 	_, err = s.DB.Exec("INSERT INTO messages (body, user_id, chat_name, message_id) VALUES ($1, $2, $3, $4)", body, userID, chatName, messageID)
 	if err != nil {
 		fmt.Println("failed to save message")
-		return err
+		return -1, err
 	}
-	return err
+	return messageID, err
 }
 
 func (s *SQLstore) GetChatsMessages(subs []string) (interface{}, error) {
@@ -460,11 +462,28 @@ func (s *SQLstore) SearchUser(input, userID string) (interface{}, error) {
 	userName := s.retrieveUsername(userID)
 	userMap := make(map[string]interface{})
 	query := `
-	SELECT u.username, u.id, pc.id, pc.chat_name, pc.user1_id, pc.user2_id,
+	SELECT u.username, u.id, 
+	CASE	
+		WHEN pc.id IS NULL THEN -1
+		ELSE pc.id
+	END AS private_chat_id
+	, CASE 
+		WHEN pc.id IS NULL THEN ''
+		ELSE pc.chat_name
+	END AS chat_name
+	, CASE 
+		WHEN pc.id IS NULL THEN -1
+		ELSE pc.user1_id
+	END AS user1_id
+	, CASE
+		WHEN pc.user2_id IS NULL THEN -1
+		ELSE pc.user2_id
+	END AS user2_id
+	,
 	CASE
 		WHEN pc.id IS NOT NULL THEN TRUE
 		ELSE FALSE
-		END AS handshake
+	END AS handshake
 	FROM users AS u
 	LEFT JOIN private_chats AS pc
 	ON (CAST($1 AS INTEGER) = pc.user1_id AND u.id = pc.user2_id)
@@ -637,4 +656,27 @@ func (s *SQLstore) retrieveGroupChatIndex(name string) string {
 		log.Fatal("Error retrieving group chat column index:", err)
 	}
 	return id
+}
+
+func (s *SQLstore) GetPrivateChatSubs(chatName, sender string) []string {
+	var receiver string
+	query := `
+		SELECT u.username
+		FROM private_chats AS pc
+		JOIN users AS u
+		ON pc.user1_id = u.id OR pc.user2_id = u.id
+		WHERE pc.chat_name = $1 AND u.username != $2
+	`
+	row := s.DB.QueryRow(query, chatName, sender)
+	err := row.Scan(&receiver)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("found user", receiver)
+	return []string{receiver}
+}
+
+func (s *SQLstore) GetGroupChatSubs(chatName, sender string) []string {
+	return nil
 }

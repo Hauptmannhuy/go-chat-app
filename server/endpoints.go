@@ -111,7 +111,7 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 		newClient.CloseConnection()
 		return nil
 	})
-
+	handleOfflineMessages(newClient)
 	fmt.Println(connSockets)
 
 	go clientMessages(newClient)

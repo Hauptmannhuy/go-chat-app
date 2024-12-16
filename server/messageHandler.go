@@ -15,6 +15,7 @@ import (
 type ActionOnType interface {
 	perform(messageType string, wsMsgType int, cl *Client)
 	save() (interface{}, error)
+	assignID(cl *Client)
 }
 
 type Cacheable interface {
@@ -33,15 +34,45 @@ const (
 	LOAD_SUBS
 )
 
-var kindHandlers = map[Kind]func(cl *Client) interface{}{
+var kindHandlers = map[Kind]interface{}{
 
-	NEW_MESSAGE:      func(cl *Client) interface{} { return &UserMessage{UserID: cl.index, Username: cl.username} },
-	NEW_CHAT:         func(cl *Client) interface{} { return &NewGroupChat{CreatorID: cl.index} },
-	SEARCH_QUERY:     func(cl *Client) interface{} { return &SearchQuery{UserID: cl.index} },
-	NEW_PRIVATE_CHAT: func(cl *Client) interface{} { return &NewPrivateChat{InitiatorID: cl.index} },
-	JOIN_CHAT:        func(cl *Client) interface{} { return &Subscription{UserID: cl.index} },
-	LOAD_MESSAGES:    func(cl *Client) interface{} { return &WebSocketMessageStore{UserID: cl.index} },
-	LOAD_SUBS:        func(cl *Client) interface{} { return &WebSocketChatStore{UserID: cl.index} },
+	NEW_MESSAGE:      &UserMessage{},
+	NEW_CHAT:         &NewGroupChat{},
+	SEARCH_QUERY:     &SearchQuery{},
+	NEW_PRIVATE_CHAT: &NewPrivateChat{},
+	JOIN_CHAT:        &Subscription{},
+	LOAD_MESSAGES:    &WebSocketMessageStore{},
+	LOAD_SUBS:        &WebSocketChatStore{},
+}
+
+func (um *UserMessage) assignID(cl *Client) {
+	um.UserID = cl.index
+	um.Username = cl.username
+
+}
+
+func (ngc *NewGroupChat) assignID(cl *Client) {
+	ngc.CreatorID = cl.index
+}
+
+func (sq *SearchQuery) assignID(cl *Client) {
+	sq.UserID = cl.index
+}
+
+func (npc *NewPrivateChat) assignID(cl *Client) {
+	npc.InitiatorID = cl.index
+}
+
+func (sub *Subscription) assignID(cl *Client) {
+	sub.UserID = cl.index
+}
+
+func (wsChatStore *WebSocketChatStore) assignID(cl *Client) {
+	wsChatStore.UserID = cl.index
+}
+
+func (wsMessageStore *WebSocketMessageStore) assignID(cl *Client) {
+	wsMessageStore.UserID = cl.index
 }
 
 func (k *Kind) toValue() string {
@@ -61,16 +92,17 @@ type OutEnvelope struct {
 	Data interface{}
 }
 
-type InEnvelope struct {
+type JSONenvelope struct {
 	Type Kind
 }
 
 type UserMessage struct {
-	Body     string `json:"body"`
-	ChatName string `json:"chat_name"`
-	UserID   string `json:"user_id"`
-	Username string `json:"username"`
-	State    string `json:"state"`
+	Body      string `json:"body"`
+	ChatName  string `json:"chat_name"`
+	UserID    string `json:"user_id"`
+	Username  string `json:"username"`
+	State     string `json:"state"`
+	MessageID int    `json:"message_id"`
 }
 
 type Subscription struct {
@@ -97,7 +129,12 @@ type NewPrivateChat struct {
 	InitiatorID string `json:"initiator_id"`
 	Username    string `json:"init_username"`
 	Message     string `json:"message"`
+	MessageID   int    `json:"message_id"`
 	ChatType    string `json:"chat_type"`
+}
+
+type OfflineMessages struct {
+	Messages [][]UserMessage
 }
 
 type WebSocketMessageStore struct {
@@ -128,7 +165,6 @@ func (wsChatStore *WebSocketChatStore) sendCache(cl *Client, msgT string, wsMsgT
 }
 
 func (wsMessageStore *WebSocketMessageStore) sendCache(client *Client, msgType string, wsMsgType int) {
-	fmt.Println(client)
 	dbMessageHandler := dbManager.initializeDBhandler("message")
 	data, err := dbMessageHandler.GetChatsMessages(client.subs)
 	if err != nil {
@@ -142,24 +178,18 @@ type Error struct {
 	Message string
 }
 
-func (um *UserMessage) perform(messageType string, wsMsgType int, sender *Client) {
+func (um *UserMessage) perform(msgType string, wsMsgType int, sender *Client) {
 	chatID := um.ChatName
 	chat := chatList.Chats[chatID]
 	onlineUsers := chat.checkOnline()
-	fmt.Println("Message sent to chat:", chat)
-	fmt.Println(len(chat.members))
 	for _, key := range chat.subscribers {
 		if userOnline := onlineUsers[key]; userOnline {
 			userSocket := chat.members[key]
-			if userSocket.index == sender.index {
-				um.State = "delivered"
-			} else {
-				um.State = "unseen"
-			}
+			writeToSocket(um, msgType, userSocket, wsMsgType)
 
-			writeToSocket(um, messageType, userSocket, wsMsgType)
 		} else {
-			fmt.Println("Caching unseen message to REDIS")
+			fmt.Println("Saving message to Redis...")
+			redisManager.offlineMessageProcessing(*um, msgType, um.ChatName, um.Username)
 		}
 	}
 }
@@ -190,13 +220,15 @@ func (newPrCh *NewPrivateChat) perform(messageType string, wsMsgType int, cl *Cl
 		newChat.AddMember(receiverSocket)
 		writeToSocket(newPrCh, messageType, receiverSocket, wsMsgType)
 	}
+	names := strings.Split(newPrCh.ChatName, "_")
+	newChat.subscribers = append(newChat.subscribers, names[0], names[1])
 	writeToSocket(newPrCh, messageType, cl, wsMsgType)
 }
 
 func (m *UserMessage) save() (interface{}, error) {
 	messageHandler := dbManager.initializeDBhandler("message")
-	err := messageHandler.CreateMessageHandler(m.Body, m.ChatName, m.UserID)
-
+	messageID, err := messageHandler.CreateMessageHandler(m.Body, m.ChatName, m.UserID)
+	m.MessageID = messageID
 	return m, err
 }
 
@@ -268,12 +300,14 @@ func (newPrCh *NewPrivateChat) save() (interface{}, error) {
 		ChatName: chatName,
 	}
 
-	err = messageHandler.CreateMessageHandler(messageData.Body, messageData.ChatName, messageData.UserID)
+	messageID, err := messageHandler.CreateMessageHandler(messageData.Body, messageData.ChatName, messageData.UserID)
 	if err != nil {
 		log.Fatal(err)
 	}
 	newPrCh.ChatName = chatName
 	newPrCh.ChatID = chatID
+	newPrCh.MessageID = messageID
+
 	return newPrCh, nil
 }
 
@@ -284,7 +318,6 @@ func HandleWriteToWebSocket(messageType string, data interface{}, wsMessageT int
 	}
 	action, ok := data.(ActionOnType)
 	if ok {
-		// fmt.Println(err)
 		action.perform(messageType, wsMessageT, cl)
 		return
 	}
@@ -315,7 +348,7 @@ func writeToSocket(message interface{}, messageType string, cl *Client, wsMsgTyp
 
 func processMessage(p []byte, cl *Client) (interface{}, string) {
 	fmt.Println("raw json:", string(p))
-	env := InEnvelope{}
+	env := JSONenvelope{}
 	err := json.Unmarshal(p, &env)
 
 	if err != nil {
@@ -330,11 +363,15 @@ func processMessage(p []byte, cl *Client) (interface{}, string) {
 		}
 	}
 
-	msg := kindHandlers[env.Type](cl)
+	msg := kindHandlers[env.Type]
 	err = json.Unmarshal(p, msg)
 
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	if assertedMsg, ok := msg.(ActionOnType); ok {
+		assertedMsg.assignID(cl)
 	}
 
 	return msg, env.Type.toValue()

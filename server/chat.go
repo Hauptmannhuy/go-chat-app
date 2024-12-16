@@ -59,7 +59,6 @@ func (chL *ChatList) addClientToSubRooms(cl *Client) {
 	for _, chID := range cl.subs {
 		chat := chL.Chats[chID]
 		chat.AddMember(cl)
-		fmt.Println("Client added", chat.Name, chat.members)
 	}
 }
 
@@ -67,6 +66,7 @@ func (ch *Chat) AddMember(cl *Client) {
 	ch.mutex.Lock()
 	defer ch.mutex.Unlock()
 	ch.members[cl.username] = cl
+	fmt.Println(cl.username, "client added to", ch.Name)
 }
 
 func (c *Chat) checkOnline() map[string]bool {

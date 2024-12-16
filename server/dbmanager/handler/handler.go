@@ -20,19 +20,20 @@ type Handler struct {
 	SubscriptionService service.Service
 }
 
-func (h *Handler) CreateMessageHandler(body, chatID, userID string) error {
+func (h *Handler) CreateMessageHandler(body, chatID, userID string) (int, error) {
 
 	if body == "" || chatID == "" {
 		var err = &argError{"Message body or chatID"}
 
-		return err
+		return -1, err
 	}
 
-	if err := h.MessageService.CreateMessage(body, chatID, userID); err != nil {
+	messageID, err := h.MessageService.CreateMessage(body, chatID, userID)
+	if err != nil {
 		fmt.Println(err, "Failed to create message")
-		return err
+		return -1, err
 	}
-	return nil
+	return messageID, nil
 }
 
 func (h *Handler) CreateUserHandler(username, email, pass string) (string, error) {
@@ -72,4 +73,8 @@ func (h *Handler) SearchChat(input, userID string) (interface{}, error) {
 		return nil, &argError{"Input should not be empty"}
 	}
 	return h.ChatService.SearchChat(input, userID)
+}
+
+func (h *Handler) GetPrivateChatSubs(chatName, sender string) []string {
+	return h.SubscriptionService.GetPrivateChatSubs(chatName, sender)
 }
