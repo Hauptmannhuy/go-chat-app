@@ -1,10 +1,8 @@
 import { useEffect, useRef } from "react";
 
- /**
- * @param {function(): Promise} onUpgrade 
- */
 
-export function useIndexedDB(onUpgrade) {
+
+export function useDB() {
   const indexDB = useRef(null)
   const dbName = 'test-db'
   // useEffect(() => {
@@ -18,7 +16,7 @@ export function useIndexedDB(onUpgrade) {
       // setIndexDB(openRequest.result)
       console.log("connected to DB")
       console.log(indexDB.current)
-      resolve(true)
+      resolve('connect')
     })
 
       openRequest.addEventListener("error", () => {
@@ -45,7 +43,7 @@ export function useIndexedDB(onUpgrade) {
       groupChatStore.createIndex("name", "name", {unique: false})
       groupChatStore.createIndex("creator_id", "creator_id", {unique:false})
       console.log("need cache")
-      onUpgrade()
+      resolve('upgrade')
         })
     })      
   }
@@ -129,8 +127,15 @@ export function useIndexedDB(onUpgrade) {
   }
   
   function saveMessage(message){
+    console.log("db mesg", message)
     const messageStore = initDBtransaction("messages")
-    messageStore.add(message)
+   const req = messageStore.add(message)
+   req.addEventListener("success", () =>{
+    console.log("req success",req.result)
+  })
+  req.addEventListener("error",()=>{
+    console.log("req success",req.error)
+  })
   }
 
   function savePrivateChat(chat){

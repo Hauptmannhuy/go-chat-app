@@ -7,19 +7,19 @@ import SearchSection from './components/SearchSection';
 import { GlobalContext } from './contexts/GlobalContext';
 
 import { ActionDispatcher } from './modules/ActionDispatcher';
-import { useChatBuild } from './modules/useChatBuild';
-import { useIndexedDB } from './modules/useIndexedDB';
-import { useMessageBuild } from './modules/useMessageBuild';
+import { useChat } from './modules/useChat';
+import { useDB } from './modules/useDB';
+import { useMessage } from './modules/useMessage';
 import { useSearchQuery } from './modules/useSearchQuery';
 import { useWebsocket } from './modules/useWebsocket';
 
 function App() {
   const {searchResults, searchProfileResults, handleSearchQuery} = useSearchQuery()
-  const {messages, addMessage, addMessageStorage, handleMessageLoad} = useMessageBuild()
-  const {chats, addChat, handleInitChatLoad, createNewChatObject, handleNewGroupChat } = useChatBuild()
+  const {messages, addMessage, addMessageStorage, handleMessageLoad} = useMessage()
+  const {chats, addChat, handleInitChatLoad, createNewChatObject, handleNewGroupChat } = useChat()
   const [selectedChat, selectChat] = useState(null)
 
-  const {connectDB, saveMessage, savePrivateChat, cacheChats, cacheMessages, getChats, getMessages} = useIndexedDB(fetchCache)
+  const {connectDB, saveMessage, savePrivateChat, cacheChats, cacheMessages, getChats, getMessages} = useDB(fetchCache)
 
   const {processSocketMessage, checkFetchStatus} = ActionDispatcher({
     chatService: {add: addChat, initialLoad:handleInitChatLoad},
@@ -70,25 +70,26 @@ function App() {
 
     useEffect(() => {
       async function initializeApp() {
-         try {
-          await connectWS()
-         } catch(error) {
-           throw new Error("Error connecting to WS:", error); 
-         }
-         try {
-         const conn = await connectDB(fetchCache)
-         if (conn) {
-          display()
-         }
-         } catch (error) {
-           throw new Error("Error connecting to DB", error);
-         }
+        let dbStatus = null
+        try {
+          dbStatus = await connectDB()
+          if (dbStatus == 'connect') {
+            display()
+          }
+        } catch (error) {
+          throw new Error("Error connecting to DB", error);
+        }
+        try {
+         await connectWS()
+         if (dbStatus == 'upgrade') await fetchCache()
+        } catch(error) {
+          throw new Error("Error connecting to WS:", error); 
+        }
        }  
        initializeApp()
     },[])
 
 
-  
 
   return (
     <>

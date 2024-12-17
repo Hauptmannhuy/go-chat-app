@@ -18,8 +18,6 @@ function ChatLayout(){
   const {sendMessage, selectedChat, selectChat, chats, searchProfileResults, searchResults} = useContext(GlobalContext)
   const {makeEnvelope} = useEnvelope()
   
-  console.log(searchResults)
-  console.log(chats)
 
   const [searchInputStatus, setSearchInputStatus] = useState(null)
   

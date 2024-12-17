@@ -24,19 +24,19 @@ export function ActionDispatcher({chatService, messageService, dbService, search
 
   
 
-  const processSocketMessage = (ev) => {
+  const processSocketMessage = async (ev) => {
     const response = JSON.parse(ev.data)
     console.log(response)
     const actionOnType = {
-      NEW_CHAT: () => {
+      NEW_CHAT: async () => {
         const {chat_name,chat_id } = response.Data
         chatService.addChat(chat_name,chat_id, 'group', true)
       },
-      NEW_MESSAGE: () => {
+      NEW_MESSAGE: async () => {
         dbService.saveMessage(response.Data)
         messageService.addMessage(response.Data)
       },
-      NEW_PRIVATE_CHAT: () => {
+      NEW_PRIVATE_CHAT: async () => {
         const {chat_name, chat_id, message, initiator_id} = response.Data
         chatService.add(chat_name,chat_id, true, 'private')
         messageService.addStorage(chat_name)
@@ -53,15 +53,34 @@ export function ActionDispatcher({chatService, messageService, dbService, search
         fetchStatus.current.messageStatus = true
         
        },
-       SEARCH_QUERY: () => {
+       SEARCH_QUERY: async () => {
         console.log(searchService)
         searchService.handleSearch(response.Data.SearchResults)
+       },
+       OFFLINE_MESSAGES: async () => {
+        const keys = Object.keys(response.Data)
+        console.log(keys)
+        keys.forEach((chatName) => {
+          const messages = response.Data[chatName]
+          for (const message of messages) {
+            const {data, type} = message
+            if (type == "NEW_MESSAGE") {
+              messageService.addMessage(data)
+              dbService.saveMessage(data)
+            } else if (type == 'NEW_PRIVATE_CHAT') {
+              messageService.addStorage(data)
+              messageService.addMessage(data)
+              dbService.savePrivateChat(data)
+              dbService.saveMessage(data) 
+            }
+          }
+        })
        },
        ERROR: () => {
         return false
        }
     }
-    actionOnType[response.Type]()
+     await actionOnType[response.Type]()
   }
  
  

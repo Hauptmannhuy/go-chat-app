@@ -1,10 +1,10 @@
 import { useState } from "react"
-import { useChatBuild } from "./useChatBuild"
+import { useChat } from "./useChat"
 
 
 
 export function useSearchQuery(){
-  const { createNewChatObject } = useChatBuild()
+  const { createNewChatObject } = useChat()
   const [searchResults, setSearchResults] = useState({})
   const [searchProfileResults, setSearchProfileResults] = useState({})
 

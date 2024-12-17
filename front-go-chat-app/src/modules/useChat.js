@@ -3,7 +3,7 @@ import { useState } from "react";
 
 
 
-export function useChatBuild() {
+export function useChat() {
 
   const [chats, setChats] = useState({});
 
