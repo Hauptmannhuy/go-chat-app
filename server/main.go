@@ -33,7 +33,7 @@ func main() {
 	}
 	err := dbManager.openAndMigrateDB()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 
@@ -44,7 +44,7 @@ func main() {
 	err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler())
 
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 }
 
@@ -72,7 +72,7 @@ func initializeWSconn(w http.ResponseWriter, r *http.Request) *Client {
 	subHandler := dbManager.initializeDBhandler("subscription")
 	subs, err := subHandler.LoadSubscriptions(userIndex)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return nil
 	}
 
@@ -94,6 +94,7 @@ func clientMessages(cl *Client) {
 	defer func() {
 		cl.socket.Close()
 		connSockets.removeClient(cl)
+		chatList.removeClient(cl)
 	}()
 	defer fmt.Println("Connection closed with", cl)
 	for {
@@ -113,7 +114,7 @@ func clientMessages(cl *Client) {
 		if err != nil {
 			data = Error{err.Error()}
 			dataType = "ERROR"
-			fmt.Println(err)
+			log.Println(err)
 		}
 		HandleWriteToWebSocket(dataType, data, wsMessageType, cl)
 

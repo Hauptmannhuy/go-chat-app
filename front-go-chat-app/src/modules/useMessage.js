@@ -14,7 +14,6 @@ export function useMessage(){
 
   function addMessage(message){
     setMessageStorages((messages) => {
-      console.log(messages)
       const newMessages = {...messages}
       const chatMessages = newMessages[message.chat_name]
       const isDublicate = chatMessages.some((val) => (val.message_id == message.message_id))

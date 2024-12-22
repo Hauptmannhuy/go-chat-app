@@ -5,7 +5,6 @@ import { useEffect, useRef } from "react";
 export function useDB() {
   const indexDB = useRef(null)
   const dbName = 'test-db'
-  // useEffect(() => {
     
   async function connectDB(){
   return new Promise((resolve, reject) => {
@@ -13,7 +12,6 @@ export function useDB() {
 
     openRequest.addEventListener("success", () => {
       indexDB.current = openRequest.result
-      // setIndexDB(openRequest.result)
       console.log("connected to DB")
       console.log(indexDB.current)
       resolve('connect')
@@ -63,7 +61,6 @@ export function useDB() {
     console.log("db:", indexDB)
     const messageStore = initDBtransaction("messages")
     console.log(data)
-    // const parsedData = JSON.parse(data)
     const objectChatNames = Object.keys(data)
     for (let i = 0; i < objectChatNames.length; i++) {
       const chatName = objectChatNames[i]

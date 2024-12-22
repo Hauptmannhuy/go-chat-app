@@ -14,7 +14,7 @@ import (
 
 type ActionOnType interface {
 	perform(messageType string, wsMsgType int, cl *Client)
-	save() (interface{}, error)
+	saveDB() (interface{}, error)
 	assignID(cl *Client)
 }
 
@@ -51,16 +51,17 @@ func (um *UserMessage) assignID(cl *Client) {
 
 }
 
+func (npc *NewPrivateChat) assignID(cl *Client) {
+	npc.InitiatorID = cl.index
+	npc.Username = cl.username
+}
+
 func (ngc *NewGroupChat) assignID(cl *Client) {
 	ngc.CreatorID = cl.index
 }
 
 func (sq *SearchQuery) assignID(cl *Client) {
 	sq.UserID = cl.index
-}
-
-func (npc *NewPrivateChat) assignID(cl *Client) {
-	npc.InitiatorID = cl.index
 }
 
 func (sub *Subscription) assignID(cl *Client) {
@@ -128,7 +129,7 @@ type NewPrivateChat struct {
 	ReceiverID  string `json:"receiver_id"`
 	InitiatorID string `json:"initiator_id"`
 	Username    string `json:"init_username"`
-	Message     string `json:"message"`
+	Message     string `json:"body"`
 	MessageID   int    `json:"message_id"`
 	ChatType    string `json:"chat_type"`
 }
@@ -149,12 +150,12 @@ func (wsChatStore *WebSocketChatStore) sendCache(cl *Client, msgT string, wsMsgT
 	dbChatHandler := dbManager.initializeDBhandler("chat")
 	groupChatData, err := dbChatHandler.LoadUserSubscribedChats(cl.index)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 	privateChatData, err := dbChatHandler.LoadSubscribedPrivateChats(cl.index)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 	chatContainer := make(map[string]interface{})
@@ -168,7 +169,7 @@ func (wsMessageStore *WebSocketMessageStore) sendCache(client *Client, msgType s
 	dbMessageHandler := dbManager.initializeDBhandler("message")
 	data, err := dbMessageHandler.GetChatsMessages(client.subs)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 	writeToSocket(data, msgType, client, wsMsgType)
@@ -189,7 +190,7 @@ func (um *UserMessage) perform(msgType string, wsMsgType int, sender *Client) {
 
 		} else {
 			fmt.Println("Saving message to Redis...")
-			redisManager.offlineMessageProcessing(*um, msgType, um.ChatName, um.Username)
+			redisManager.offlineMessageProcessing(*um, msgType)
 		}
 	}
 }
@@ -219,57 +220,59 @@ func (newPrCh *NewPrivateChat) perform(messageType string, wsMsgType int, cl *Cl
 	if ok {
 		newChat.AddMember(receiverSocket)
 		writeToSocket(newPrCh, messageType, receiverSocket, wsMsgType)
+	} else {
+		redisManager.offlineMessageProcessing(*newPrCh, messageType)
 	}
 	names := strings.Split(newPrCh.ChatName, "_")
 	newChat.subscribers = append(newChat.subscribers, names[0], names[1])
 	writeToSocket(newPrCh, messageType, cl, wsMsgType)
 }
 
-func (m *UserMessage) save() (interface{}, error) {
+func (m *UserMessage) saveDB() (interface{}, error) {
 	messageHandler := dbManager.initializeDBhandler("message")
 	messageID, err := messageHandler.CreateMessageHandler(m.Body, m.ChatName, m.UserID)
 	m.MessageID = messageID
 	return m, err
 }
 
-func (nc *NewGroupChat) save() (interface{}, error) {
+func (nc *NewGroupChat) saveDB() (interface{}, error) {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	subHandler := dbManager.initializeDBhandler("subscription")
 	id, err := chatHandler.CreateChatHandler(nc.Name, nc.CreatorID)
 	nc.ID = id
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return nil, err
 	}
 	err = subHandler.SaveSubHandler(nc.CreatorID, id)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return nil, err
 	}
 	return nc, err
 }
 
-func (sub *Subscription) save() (interface{}, error) {
+func (sub *Subscription) saveDB() (interface{}, error) {
 	subHandler := dbManager.initializeDBhandler("subscription")
 	subHandler.SaveSubHandler(sub.UserID, sub.ChatID)
 	return sub, nil
 }
 
-func (sq *SearchQuery) save() (interface{}, error) {
+func (sq *SearchQuery) saveDB() (interface{}, error) {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	userHandler := dbManager.initializeDBhandler("user")
 	result := make(map[string]interface{})
 	resUsers, err := userHandler.SearchUser(sq.Input, sq.UserID)
 
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return nil, err
 	}
 
 	resChats, err := chatHandler.SearchChat(sq.Input, sq.UserID)
 
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return nil, err
 	}
 
@@ -280,7 +283,7 @@ func (sq *SearchQuery) save() (interface{}, error) {
 	return sq, nil
 }
 
-func (newPrCh *NewPrivateChat) save() (interface{}, error) {
+func (newPrCh *NewPrivateChat) saveDB() (interface{}, error) {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	messageHandler := dbManager.initializeDBhandler("message")
 
@@ -299,6 +302,8 @@ func (newPrCh *NewPrivateChat) save() (interface{}, error) {
 		UserID:   newPrCh.InitiatorID,
 		ChatName: chatName,
 	}
+
+	fmt.Println("message data", messageData)
 
 	messageID, err := messageHandler.CreateMessageHandler(messageData.Body, messageData.ChatName, messageData.UserID)
 	if err != nil {
@@ -379,7 +384,7 @@ func processMessage(p []byte, cl *Client) (interface{}, string) {
 
 func (dbm *sqlDBwrap) handleDatabase(data interface{}) (interface{}, error) {
 	if action, ok := data.(ActionOnType); ok {
-		res, err := action.save()
+		res, err := action.saveDB()
 		return res, err
 	} else {
 		fmt.Println("No write to database")

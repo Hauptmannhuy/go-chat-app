@@ -4,7 +4,7 @@ export default function SignOutButton(){
   const navigate = useNavigate()
   const signOut = async() => {
     try {
-      const response = await fetch('api/sign_out',{
+       await fetch('api/sign_out',{
         method: 'POST',
         credentials: 'include'
       })

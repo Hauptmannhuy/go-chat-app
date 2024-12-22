@@ -12,14 +12,6 @@ type Chat struct {
 	mutex       sync.Mutex
 }
 
-type PrivateChat struct {
-	members      []*Client
-	mutex        sync.Mutex
-	ID           string `json:"chat_id"`
-	FirstUserID  string `json:"user_a_id"`
-	SecondUserID string `json:"user_b_id"`
-}
-
 type ChatList struct {
 	Chats map[string]*Chat
 	mutex sync.Mutex
@@ -62,11 +54,28 @@ func (chL *ChatList) addClientToSubRooms(cl *Client) {
 	}
 }
 
+func (chL *ChatList) removeClient(cl *Client) {
+	for _, sub := range cl.subs {
+		chat := chL.Chats[sub]
+		chat.removeMember(cl.username)
+	}
+}
+
 func (ch *Chat) AddMember(cl *Client) {
 	ch.mutex.Lock()
 	defer ch.mutex.Unlock()
 	ch.members[cl.username] = cl
 	fmt.Println(cl.username, "client added to", ch.Name)
+}
+
+func (ch *Chat) removeMember(username string) {
+	for k := range ch.members {
+		if k == username {
+			delete(ch.members, k)
+			break
+		}
+	}
+
 }
 
 func (c *Chat) checkOnline() map[string]bool {

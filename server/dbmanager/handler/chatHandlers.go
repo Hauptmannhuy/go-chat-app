@@ -44,3 +44,10 @@ func (h *Handler) LoadUserSubscribedChats(id string) ([]interface{}, error) {
 func (h *Handler) LoadSubscribedPrivateChats(id string) (interface{}, error) {
 	return h.ChatService.LoadSubscribedPrivateChats(id)
 }
+
+func (h *Handler) SearchChat(input, userID string) (interface{}, error) {
+	if input == "" {
+		return nil, &argError{"Input should not be empty"}
+	}
+	return h.ChatService.SearchChat(input, userID)
+}

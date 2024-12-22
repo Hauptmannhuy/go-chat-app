@@ -14,7 +14,12 @@ import (
 var redisManager redisWrapper
 
 type redisBuffer interface {
-	saveToBuff(chatName, sender string)
+	saveToBuff()
+}
+
+type redisContainer struct {
+	Type string      `json:"type"`
+	Data interface{} `json:"data"`
 }
 
 type redisWrapper struct {
@@ -58,12 +63,14 @@ func (r *redisWrapper) getOffMessages(key string) []interface{} {
 
 	for _, val := range strSlice {
 		buffMessage := []byte(val)
-		var redisContainer JSONenvelope
-
-		var err = json.Unmarshal(buffMessage, &redisContainer)
-		data := kindHandlers[redisContainer.Type]
+		var redisTypeContainer JSONenvelope
+		var dataContainer redisContainer
+		var err = json.Unmarshal(buffMessage, &redisTypeContainer)
+		data := kindHandlers[redisTypeContainer.Type]
 		json.Unmarshal(buffMessage, &data)
-		messages = append(messages, data)
+		dataContainer.Type = redisTypeContainer.Type.toValue()
+		dataContainer.Data = data
+		messages = append(messages, dataContainer)
 		if err != nil {
 			log.Fatal("error scanning slice", err)
 		}
@@ -77,48 +84,64 @@ func (r *redisWrapper) getOffMessages(key string) []interface{} {
 	return messages
 }
 
-func (r *redisWrapper) offlineMessageProcessing(msg interface{}, msgType, chatName, sender string) {
+func (r *redisWrapper) offlineMessageProcessing(msg interface{}, msgType string) {
 	var b redisBuffer
+
 	switch msgType {
 	case "NEW_MESSAGE":
 		data := msg.(UserMessage)
 		b = data
 
 	case "NEW_PRIVATE_CHAT":
-		// data := msg.(NewPrivateChat)
-		// b = data
+		data := msg.(NewPrivateChat)
+		b = data
+
 	}
-	b.saveToBuff(chatName, sender)
+	b.saveToBuff()
 }
 
-func (um UserMessage) saveToBuff(chatName, sender string) {
+func (um UserMessage) saveToBuff() {
 	var ctx = context.Background()
 	var receivers []string
-	if chatType(chatName) == "private" {
+	if chatType(um.ChatName) == "private" {
 		subManager := dbManager.initializeDBhandler("subscription")
-		receivers = subManager.GetPrivateChatSubs(chatName, sender)
+		receivers = subManager.GetPrivateChatSubs(um.ChatName, um.Username)
 	} else {
 		// ...
 	}
-	var redisContainer struct {
-		Type string      `json:"type"`
-		Data interface{} `json:"data"`
+	container := redisContainer{
+		Type: "NEW_MESSAGE",
+		Data: um,
 	}
-	redisContainer.Type = "NEW_MESSAGE"
-	redisContainer.Data = um
-	json, err := json.Marshal(redisContainer)
+
+	json, err := json.Marshal(container)
 	if err != nil {
-		fmt.Println("Error while serializing cache data to redis")
+		log.Println("Error while serializing cache data to redis")
 	}
 
 	for _, receiver := range receivers {
-		key := fmt.Sprintf("offline:messages:%s:%s", chatName, receiver)
+		key := fmt.Sprintf("offline:messages:%s:%s", um.ChatName, receiver)
 		fmt.Println("key save", key)
 		redisManager.redis.RPush(ctx, key, json)
 		if err != nil {
 			fmt.Println("error retrieving redis message", err)
 		}
 	}
+}
+
+func (npc NewPrivateChat) saveToBuff() {
+	ctx := context.Background()
+	receiverName := strings.Split(npc.ChatName, "_")[1]
+	key := fmt.Sprintf("offline:messages:%s:%s", npc.ChatName, receiverName)
+	container := redisContainer{
+		Type: "NEW_PRIVATE_CHAT",
+		Data: npc,
+	}
+	json, err := json.Marshal(container)
+	if err != nil {
+		log.Println(err)
+	}
+	redisManager.redis.LPush(ctx, key, json)
 }
 
 func chatType(chatName string) string {

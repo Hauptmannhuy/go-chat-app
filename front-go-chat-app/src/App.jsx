@@ -6,7 +6,7 @@ import SearchSection from './components/SearchSection';
 
 import { GlobalContext } from './contexts/GlobalContext';
 
-import { ActionDispatcher } from './modules/ActionDispatcher';
+import { actionDispatcher } from './modules/actionDispatcher';
 import { useChat } from './modules/useChat';
 import { useDB } from './modules/useDB';
 import { useMessage } from './modules/useMessage';
@@ -21,7 +21,7 @@ function App() {
 
   const {connectDB, saveMessage, savePrivateChat, cacheChats, cacheMessages, getChats, getMessages} = useDB(fetchCache)
 
-  const {processSocketMessage, checkFetchStatus} = ActionDispatcher({
+  const {processSocketMessage, checkFetchStatus} = actionDispatcher({
     chatService: {add: addChat, initialLoad:handleInitChatLoad},
     messageService: {addMessage:addMessage, addStorage: addMessageStorage},
     searchService: {handleSearch: handleSearchQuery},
@@ -47,7 +47,7 @@ function App() {
     })
   }
 
-  function display() {
+  async function display() {
     const {privateChatReq, groupChatReq} = getChats()
     const messageReq = getMessages()
 
@@ -74,7 +74,7 @@ function App() {
         try {
           dbStatus = await connectDB()
           if (dbStatus == 'connect') {
-            display()
+           await display()
           }
         } catch (error) {
           throw new Error("Error connecting to DB", error);

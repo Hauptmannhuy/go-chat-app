@@ -7,7 +7,6 @@ export function ChatSnippet({name}) {
   const {messages} = useContext(GlobalContext)
   const nameFormatter = (name) => (name.split('_').filter((el) => (el != getUsername())).join(' '))
   const dialogue = messages[name]
-  // const lastMessage = dialogue[dialogue.length-1]
   if (dialogue && dialogue.length > 0) {
     return (
       <div className="snippet-container">

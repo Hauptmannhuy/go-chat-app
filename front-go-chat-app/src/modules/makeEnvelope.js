@@ -13,7 +13,7 @@ export const useEnvelope = () => {
       "NEW_PRIVATE_CHAT": {
         type: "NEW_PRIVATE_CHAT",
         receiver_id: `${data[0]}`,
-        message: `${data[1]}`,
+        body: `${data[1]}`,
       },
       "JOIN_CHAT": {
         type: "JOIN_CHAT",
