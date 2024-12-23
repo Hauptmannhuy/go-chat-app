@@ -6,7 +6,8 @@ export const GlobalContext = createContext({
     selectChat: null,
     searchResults: {},
     searchProfileResults: {},
-    selectedChat: {chat_name: null, id: null, participation: null, type: ''},
+    selectedChat: {name: null, id: null, participation: null, type: ''},
     chats: {},
-    messages: {}
+    messages: {},
+    onlineStatus: (name) => {},
 })

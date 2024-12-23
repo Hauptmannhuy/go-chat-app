@@ -316,7 +316,7 @@ func (newPrCh *NewPrivateChat) saveDB() (interface{}, error) {
 	return newPrCh, nil
 }
 
-func HandleWriteToWebSocket(messageType string, data interface{}, wsMessageT int, cl *Client) {
+func dispatchAction(messageType string, data interface{}, wsMessageT int, cl *Client) {
 	if errorMessage, ok := data.(Error); ok {
 		errorMessage.handleError(data, cl, wsMessageT)
 		return
@@ -332,23 +332,6 @@ func HandleWriteToWebSocket(messageType string, data interface{}, wsMessageT int
 		cacheAction.sendCache(cl, messageType, wsMessageT)
 	}
 
-}
-
-func writeToSocket(message interface{}, messageType string, cl *Client, wsMsgType int) {
-	outEnv := OutEnvelope{
-		Type: messageType,
-		Data: message,
-	}
-	p, err := json.Marshal(outEnv)
-	if err != nil {
-		log.Fatal("error in send ws response", err)
-	}
-	socket := cl.socket
-	if err := socket.WriteMessage(wsMsgType, p); err != nil {
-		log.Println("Error writing to WebSocket:", err)
-		return
-	}
-	fmt.Println("Message sent successfully to client", cl, "Message:", string(p))
 }
 
 func processMessage(p []byte, cl *Client) (interface{}, string) {

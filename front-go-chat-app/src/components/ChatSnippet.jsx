@@ -1,11 +1,10 @@
 import { useContext } from "react"
 import { GlobalContext } from "../contexts/GlobalContext"
-import { useAuth } from "../modules/useAuth"
+import { nameFormatter } from "../modules/nameFormatter"
 
 export function ChatSnippet({name}) {
-  const {getUsername} = useAuth()
   const {messages} = useContext(GlobalContext)
-  const nameFormatter = (name) => (name.split('_').filter((el) => (el != getUsername())).join(' '))
+  
   const dialogue = messages[name]
   if (dialogue && dialogue.length > 0) {
     return (

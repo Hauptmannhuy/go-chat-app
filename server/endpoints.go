@@ -112,6 +112,8 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	handleOfflineMessages(newClient)
+	broadcastUserStatus("online", newClient)
+	loadPeersStatus(newClient)
 	fmt.Println(connSockets)
 
 	go clientMessages(newClient)

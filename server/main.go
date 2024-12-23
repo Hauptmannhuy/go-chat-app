@@ -95,6 +95,7 @@ func clientMessages(cl *Client) {
 		cl.socket.Close()
 		connSockets.removeClient(cl)
 		chatList.removeClient(cl)
+		broadcastUserStatus("offline", cl)
 	}()
 	defer fmt.Println("Connection closed with", cl)
 	for {
@@ -116,7 +117,7 @@ func clientMessages(cl *Client) {
 			dataType = "ERROR"
 			log.Println(err)
 		}
-		HandleWriteToWebSocket(dataType, data, wsMessageType, cl)
+		dispatchAction(dataType, data, wsMessageType, cl)
 
 	}
 }

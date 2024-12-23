@@ -12,8 +12,11 @@ import { useDB } from './modules/useDB';
 import { useMessage } from './modules/useMessage';
 import { useSearchQuery } from './modules/useSearchQuery';
 import { useWebsocket } from './modules/useWebsocket';
+import useOnline from './modules/useOnline';
 
 function App() {
+
+  const {onlineUsers, onlineStatus, changeOnlineStatus} = useOnline()
   const {searchResults, searchProfileResults, handleSearchQuery} = useSearchQuery()
   const {messages, addMessage, addMessageStorage, handleMessageLoad} = useMessage()
   const {chats, addChat, handleInitChatLoad, createNewChatObject, handleNewGroupChat } = useChat()
@@ -26,7 +29,8 @@ function App() {
     messageService: {addMessage:addMessage, addStorage: addMessageStorage},
     searchService: {handleSearch: handleSearchQuery},
     dbService: {saveMessage: saveMessage, savePrivateChat: savePrivateChat, cacheChats: cacheChats, cacheMessages: cacheMessages,},
-    uiManager: {selectChat: selectChat}
+    uiManager: {selectChat: selectChat},
+    userService: {changeOnlineStatus: changeOnlineStatus}
   }, )
 
   const {sendMessage, connectWS} = useWebsocket("/socket/chat", processSocketMessage)
@@ -93,7 +97,7 @@ function App() {
 
   return (
     <>
-    <GlobalContext.Provider value={{sendMessage, selectChat, selectedChat, messages, chats, searchProfileResults, searchResults}}>
+    <GlobalContext.Provider value={{sendMessage, selectChat, selectedChat, messages, chats, searchProfileResults, searchResults, onlineStatus}}>
         <ChatLayout/>
     </GlobalContext.Provider>
     </>

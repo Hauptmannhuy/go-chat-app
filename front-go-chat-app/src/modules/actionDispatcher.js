@@ -2,7 +2,7 @@ import { useRef } from "react";
 
 
 
-export function actionDispatcher({chatService, messageService, dbService, searchService}){
+export function actionDispatcher({chatService, messageService, dbService, searchService, userService}){
 
   const fetchStatus = useRef({messageStatus: null, subStatus: null })  
   const delay = async (ms) => new Promise((resolve) => {setTimeout(resolve,ms) } )
@@ -76,6 +76,9 @@ export function actionDispatcher({chatService, messageService, dbService, search
             }
           }
         })
+       },
+       USER_STATUS: () => {
+        userService.changeOnlineStatus(response.Data.Status)
        },
        ERROR: () => {
         return false
