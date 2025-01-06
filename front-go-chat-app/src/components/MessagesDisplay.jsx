@@ -1,5 +1,5 @@
 export function MessagesDisplay({chatMessages}){
- 
+ console.log(chatMessages)
   return  (
     <>
     {

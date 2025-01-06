@@ -49,17 +49,17 @@ export function useWebsocket(url, onMessage) {
     }
  }
      
- const sendMessage = (message) => {
+ const writeToSocket = (message) => {
   if (socket.current){
    socket.current.send(JSON.stringify(message))
  } else {
    setTimeout(() => {
-     sendMessage(message)
+    writeToSocket(message)
    }, 1000);
  }
 }
 
 
  
-  return { connectWS, sendMessage, socket}
+  return { connectWS, writeToSocket, socket}
 }

@@ -29,13 +29,14 @@ export function useChat() {
   }
 
   const handleInitChatLoad = (chats, type,  participation = false) => {
+    console.log(chats)
     if (!chats) return 
     typeof chats != 'object' ? chats = [chats] : null
     const chatKeys = Object.keys(chats)
 
     chatKeys.forEach(chatName => {
       const chat = chats[chatName]
-      addChat(chat.chat_name, chat.chat_id, participation, type)
+      addChat(chat.chat_name || chat.name, chat.chat_id, participation, type)
      
     })
   }

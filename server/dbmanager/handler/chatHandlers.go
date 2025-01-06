@@ -24,14 +24,6 @@ func (h *Handler) GetAllChats() (store.Chats, error) {
 	return h.ChatService.GetAllChats()
 }
 
-func (h *Handler) SearchUser(input, userID string) (interface{}, error) {
-
-	if input == "" {
-		return nil, &argError{"Input should not be empty"}
-	}
-	return h.UserService.SearchUser(input, userID)
-}
-
 func (h *Handler) CreatePrivateChatHandler(initiatorID, receiverID string) (interface{}, error) {
 
 	return h.ChatService.CreatePrivateChat(initiatorID, receiverID)
@@ -50,4 +42,8 @@ func (h *Handler) SearchChat(input, userID string) (interface{}, error) {
 		return nil, &argError{"Input should not be empty"}
 	}
 	return h.ChatService.SearchChat(input, userID)
+}
+
+func (h *Handler) RetrieveGroupChatCreatorID(chatID string) string {
+	return h.ChatService.RetrieveGroupChatCreatorID(chatID)
 }

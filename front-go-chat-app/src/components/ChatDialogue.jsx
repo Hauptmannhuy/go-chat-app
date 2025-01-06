@@ -5,24 +5,15 @@ import { nameFormatter } from "../modules/nameFormatter"
 
 
 
-function Chat({ onSend }){
+function ChatDialogue({ onSend }){
   const {selectedChat, messages, onlineStatus} = useContext(GlobalContext)
   const chatMessages = messages[selectedChat.name]
   const [inputValue, setInputValue] = useState("")
   console.log("chat changed to", selectedChat)
   console.log("chat messages", chatMessages)
 
-  const groupChatUnacquinted = () => ( selectedChat.chat_type == 'group' && !selectedChat.participation )
   return (
   <>
-    {
-      groupChatUnacquinted() ? (
-        <button key={selectedChat.chat_id} onClick= {() => {subscribeHandler(selectedChat.chat_id) }}> Join {selectedChat.chat_id} group chat </button>
-      ) : (
-        null 
-    )
-  }
-
   <div>User status: {onlineStatus(nameFormatter(selectedChat.name))}</div>
 
    <MessagesDisplay
@@ -35,4 +26,4 @@ function Chat({ onSend }){
     )
 }
 
-export default Chat
+export default ChatDialogue

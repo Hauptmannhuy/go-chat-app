@@ -27,9 +27,19 @@ export function actionDispatcher({chatService, messageService, dbService, search
     const response = JSON.parse(ev.data)
     console.log(response)
     const actionOnType = {
-      NEW_CHAT: async () => {
+      NEW_GROUP_CHAT: async () => {
         const {chat_name,chat_id } = response.Data
-        chatService.addChat(chat_name,chat_id, 'group', true)
+        chatService.add(chat_name,chat_id, 'group', true)
+        messageService.addStorage(chat_name)
+        dbService.saveGroupChat(response.Data)
+      },
+      JOIN_CHAT: async () => {
+        const {chat_name, chat_id, creator_id, message} = response.Data
+        chatService.add(chat_name, chat_id, 'group', true)
+        messageService.addStorage(chat_name)
+        // messageService.addMessage(message)
+        dbService.saveGroupChat({chat_name: chat_name, chat_id: chat_id, creator_id: creator_id})
+        // dbService.saveMessage(message)
       },
       NEW_MESSAGE: async () => {
         dbService.saveMessage(response.Data)
@@ -39,9 +49,9 @@ export function actionDispatcher({chatService, messageService, dbService, search
         const {chat_name, chat_id, body, initiator_id, init_username} = response.Data
         chatService.add(chat_name,chat_id, true, 'private')
         messageService.addStorage(chat_name)
-        messageService.addMessage({body: body, chat_name: chat_name, chat_id: chat_id, username: init_username, message_id: 0 })
+        // messageService.addMessage({body: body, chat_name: chat_name, chat_id: chat_id, username: init_username, message_id: 0 })
         dbService.savePrivateChat({chat_name: chat_name, chat_id: chat_id})
-        dbService.saveMessage({body: body, chat_name: chat_name, user_id: initiator_id, message_id: 0 }) 
+        // dbService.saveMessage({body: body, chat_name: chat_name, user_id: initiator_id, message_id: 0 }) 
       },
       LOAD_SUBS: async () => {
         await dbService.cacheChats(response.Data)
@@ -53,8 +63,8 @@ export function actionDispatcher({chatService, messageService, dbService, search
         
        },
        SEARCH_QUERY: async () => {
-        console.log(searchService)
         searchService.handleSearch(response.Data.SearchResults)
+        userService.changeOnlineStatus(response.Data.status)
        },
        OFFLINE_MESSAGES: async () => {
         const keys = Object.keys(response.Data)
@@ -81,6 +91,7 @@ export function actionDispatcher({chatService, messageService, dbService, search
         userService.changeOnlineStatus(response.Data.Status)
        },
        ERROR: () => {
+        fetchStatus.current.messageStatus = false
         return false
        }
     }

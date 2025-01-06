@@ -38,7 +38,7 @@ export function useDB() {
 
       const groupChatStore = db.createObjectStore("group_chats") 
       groupChatStore.createIndex("chat_id", "id", {unique: true})
-      groupChatStore.createIndex("name", "name", {unique: false})
+      groupChatStore.createIndex("chat_name", "chat_name", {unique: false})
       groupChatStore.createIndex("creator_id", "creator_id", {unique:false})
       console.log("need cache")
       resolve('upgrade')
@@ -58,7 +58,7 @@ export function useDB() {
   }
 
  async function cacheMessages(data){
-    console.log("db:", indexDB)
+    if (!data) return
     const messageStore = initDBtransaction("messages")
     console.log(data)
     const objectChatNames = Object.keys(data)
@@ -79,35 +79,45 @@ export function useDB() {
 
   
  async function cacheChats(data){
-    console.log(data)
-    const groupChatsStore = initDBtransaction("group_chats")
-    const privateChatsStore = initDBtransaction("private_chats")
-
-    const cache = (data, storage) => {
-      const keys = Object.keys(data)
-      keys.forEach(name => {
-        storage.add(data[name], data[name].chat_id)
-      });
-    }
     try {
       if (!data || !data.private){
         throw new Error("Private chat data is missing");
+      } else {
+        cacheChat(data.private, "private_chats")
       }
-      cache(data.private, privateChatsStore)
     } catch (error) {
       console.error(error)
     }
 
     try {
-      if (!data || !data.private){
-        cache(data.group, groupChatsStore)
+      if (!data || !data.group){
         throw new Error("Group chat data is missing");
+      } else {
+        cacheChat(data.group, "group_chats")
+        
       }
     } catch (error) {
       console.error(error)
-    }
-   
-  }
+    }  
+}
+
+
+function cacheChat(data, storageName) {
+  console.log(data)
+  const storage = initDBtransaction(storageName)
+  const keys = Object.keys(data)
+  keys.forEach(name => {
+    const req = storage.add(data[name], data[name].chat_id)
+    req.addEventListener("success", () => {
+      console.log("req success", req.result)
+    })
+    req.addEventListener("error", () => {
+      console.log("req error", req.error)
+  })
+})
+}
+
+
 
   function getChats(){
     console.log("get chats")
@@ -147,8 +157,24 @@ export function useDB() {
     })
   }
 
+  function saveGroupChat(chat){
+    const groupChatsStore = initDBtransaction("group_chats")
+    const newGroupChatObj = {
+      chat_id: chat.chat_id,
+      name: chat.chat_name,
+      creator_id: chat.creator_id
+    }
+    let req = groupChatsStore.add(newGroupChatObj, chat.chat_id)
+    req.addEventListener("success", () =>{
+      console.log("req success",req.result)
+    })
+    req.addEventListener("error",()=>{
+      console.log("req success",req.error)
+    })
+  }
 
 
 
-  return {connectDB, cacheMessages, cacheMessages, cacheChats, getMessages, getChats, saveMessage, savePrivateChat}
+
+  return {connectDB, cacheMessages, cacheMessages, cacheChats, getMessages, getChats, saveMessage, savePrivateChat, saveGroupChat}
 }

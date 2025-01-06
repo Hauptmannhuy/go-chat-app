@@ -11,12 +11,13 @@ export default function useOnline(){
     for (const key of keys) {
       newOnlineStatus[key] = newStatusMessage[key]
     }
-    console.log(onlineUsers)
     return newOnlineStatus
     })  
   }
   
-  const onlineStatus = (name) => (onlineUsers[name])
+  const onlineStatus = (name) => {
+    console.log(onlineUsers[name])
+    return onlineUsers[name]}
 
   return {onlineUsers, changeOnlineStatus, onlineStatus}
 }

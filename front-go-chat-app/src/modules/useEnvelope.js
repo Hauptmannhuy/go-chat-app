@@ -15,9 +15,15 @@ export const useEnvelope = () => {
         receiver_id: `${data[0]}`,
         body: `${data[1]}`,
       },
+      "NEW_GROUP_CHAT":{
+        type:"NEW_GROUP_CHAT",
+        chat_name: `${data[0]}`,
+      },
       "JOIN_CHAT": {
         type: "JOIN_CHAT",
         chat_id: `${data[0]}`,
+        chat_name: `${data[1]}`,
+        body_message:`${data[2]}`,
       },
       "SEARCH_QUERY": {
         type: "SEARCH_QUERY",

@@ -16,6 +16,7 @@ var (
 		"JOIN_CHAT":        JOIN_CHAT,
 		"LOAD_MESSAGES":    LOAD_MESSAGES,
 		"LOAD_SUBS":        LOAD_SUBS,
+		"NEW_GROUP_CHAT":   NEW_GROUP_CHAT,
 	}
 
 	_KindValueToName = map[Kind]string{
@@ -26,6 +27,7 @@ var (
 		JOIN_CHAT:        "JOIN_CHAT",
 		LOAD_MESSAGES:    "LOAD_MESSAGES",
 		LOAD_SUBS:        "LOAD_SUBS",
+		NEW_GROUP_CHAT:   "NEW_GROUP_CHAT",
 	}
 )
 
@@ -40,6 +42,7 @@ func init() {
 			interface{}(JOIN_CHAT).(fmt.Stringer).String():        JOIN_CHAT,
 			interface{}(LOAD_MESSAGES).(fmt.Stringer).String():    LOAD_MESSAGES,
 			interface{}(LOAD_SUBS).(fmt.Stringer).String():        LOAD_SUBS,
+			interface{}(NEW_GROUP_CHAT).(fmt.Stringer).String():   NEW_GROUP_CHAT,
 		}
 	}
 }

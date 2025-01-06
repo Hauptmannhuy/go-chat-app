@@ -9,7 +9,7 @@ type Service struct {
 	SubscriptionStore store.SubscriptionStore
 }
 
-func (s *Service) SearchUser(input, userID string) (interface{}, error) {
+func (s *Service) SearchUser(input, userID string) (map[string]store.UserContainerData, error) {
 	return s.UserStore.SearchUser(input, userID)
 }
 
@@ -63,4 +63,8 @@ func (s *Service) CreatePrivateChat(user1id, user2id string) (interface{}, error
 
 func (s *Service) LoadSubscribedPrivateChats(id string) (interface{}, error) {
 	return s.ChatStore.LoadSubscribedPrivateChats(id)
+}
+
+func (s *Service) RetrieveGroupChatCreatorID(chatID string) string {
+	return s.ChatStore.RetrieveGroupChatCreatorID(chatID)
 }

@@ -22,26 +22,30 @@ function App() {
   const {chats, addChat, handleInitChatLoad, createNewChatObject, handleNewGroupChat } = useChat()
   const [selectedChat, selectChat] = useState(null)
 
-  const {connectDB, saveMessage, savePrivateChat, cacheChats, cacheMessages, getChats, getMessages} = useDB(fetchCache)
+  const {connectDB, saveMessage, savePrivateChat, saveGroupChat, cacheChats, cacheMessages, getChats, getMessages} = useDB(fetchCache)
 
   const {processSocketMessage, checkFetchStatus} = actionDispatcher({
     chatService: {add: addChat, initialLoad:handleInitChatLoad},
     messageService: {addMessage:addMessage, addStorage: addMessageStorage},
     searchService: {handleSearch: handleSearchQuery},
-    dbService: {saveMessage: saveMessage, savePrivateChat: savePrivateChat, cacheChats: cacheChats, cacheMessages: cacheMessages,},
+    dbService: { saveMessage: saveMessage, 
+                 savePrivateChat: savePrivateChat, 
+                 cacheChats: cacheChats, 
+                 cacheMessages: cacheMessages, 
+                 saveGroupChat: saveGroupChat, 
+                 getChats: getChats, 
+                 getMessages: getMessages
+    },
     uiManager: {selectChat: selectChat},
     userService: {changeOnlineStatus: changeOnlineStatus}
   }, )
 
-  const {sendMessage, connectWS} = useWebsocket("/socket/chat", processSocketMessage)
-
-
-  
+  const {writeToSocket, connectWS} = useWebsocket("/socket/chat", processSocketMessage)
 
  async function fetchCache() {
     console.log("asking cache")
-    sendMessage({type: "LOAD_SUBS"})
-    sendMessage({type: "LOAD_MESSAGES"})
+    writeToSocket({type: "LOAD_SUBS"})
+    writeToSocket({type: "LOAD_MESSAGES"})
     checkFetchStatus()
     .then(() => {
       display()
@@ -97,7 +101,7 @@ function App() {
 
   return (
     <>
-    <GlobalContext.Provider value={{sendMessage, selectChat, selectedChat, messages, chats, searchProfileResults, searchResults, onlineStatus}}>
+    <GlobalContext.Provider value={{writeToSocket, selectChat, selectedChat, messages, chats, searchProfileResults, searchResults, onlineStatus}}>
         <ChatLayout/>
     </GlobalContext.Provider>
     </>

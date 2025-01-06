@@ -2,7 +2,7 @@ import { createContext } from "react";
 
 export const GlobalContext = createContext({
     socket: null, 
-    sendMessage: null,
+    writeToSocket: (message) => {},
     selectChat: null,
     searchResults: {},
     searchProfileResults: {},

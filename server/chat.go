@@ -68,6 +68,10 @@ func (ch *Chat) AddMember(cl *Client) {
 	fmt.Println(cl.username, "client added to", ch.Name)
 }
 
+func (chat *Chat) AppendSubs(subs []string) {
+	chat.subscribers = append(chat.subscribers, subs...)
+}
+
 func (ch *Chat) removeMember(username string) {
 	for k := range ch.members {
 		if k == username {

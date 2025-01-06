@@ -82,7 +82,7 @@ func (dbm *sqlDBwrap) initializeDBhandler(handlerDeclaration string) handler.Han
 		service.SubscriptionStore = &dbStore
 		handler.SubscriptionService = service
 	default:
-		fmt.Println("No handler exists for specific declaration")
+		fmt.Println("No handler exists for specified declaration")
 	}
 	return handler
 }

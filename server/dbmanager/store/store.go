@@ -17,6 +17,11 @@ type Message struct {
 	ChatID    string `json:"chat_name"`
 }
 
+type UserContainerData struct {
+	Profile UserProfileData `json:"profile"`
+	Chat    PrivateChatInfo `json:"chat"`
+}
+
 type UserProfileData struct {
 	Username string `json:"username"`
 	ID       int    `json:"id"`
@@ -28,17 +33,20 @@ type loginUserData struct {
 	ID       string `json:"id"`
 }
 
-type privateChat struct {
+// type PrivateChat struct {
+// 	ChatName  string `json:"chat_name"`
+// 	ChatID    int    `json:"chat_id"`
+// 	User1ID   int    `json:"user1_id"`
+// 	User2ID   int    `json:"user2_id"`
+// 	Handshake bool   `json:"handshake"`
+// }
+
+type PrivateChatInfo struct {
 	ChatName  string `json:"chat_name"`
 	ChatID    int    `json:"chat_id"`
 	User1ID   int    `json:"user1_id"`
 	User2ID   int    `json:"user2_id"`
 	Handshake bool   `json:"handshake"`
-}
-
-type PrivateChatInfo struct {
-	Name string `json:"name"`
-	ID   int    `json:"id"`
 }
 
 type ChatInfo struct {

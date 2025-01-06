@@ -8,12 +8,12 @@ import (
 type UserStore interface {
 	SaveAccount(name, email, pass string) (string, error)
 	AuthenticateAccount(name, pass string) (string, error)
-	SearchUser(username, userID string) (interface{}, error)
+	SearchUser(username, userID string) (map[string]UserContainerData, error)
 }
 
-func (s *SQLstore) SearchUser(input, userID string) (interface{}, error) {
+func (s *SQLstore) SearchUser(input, userID string) (map[string]UserContainerData, error) {
 	userName := s.retrieveUsername(userID)
-	userMap := make(map[string]interface{})
+	userMap := make(map[string]UserContainerData)
 	query := `
 	SELECT u.username, u.id, 
 	CASE	
@@ -65,7 +65,7 @@ func (s *SQLstore) SearchUser(input, userID string) (interface{}, error) {
 		fmt.Printf("username: %s, id: %d, pcID: %d, chatName: %s, user1ID: %d, user2ID: %d, handshake: %v\n",
 			username, id, pcID, chatName, user1ID, user2ID, handshake)
 
-		resultChat := privateChat{
+		resultChat := PrivateChatInfo{
 			ChatName:  chatName,
 			ChatID:    pcID,
 			User1ID:   user1ID,
@@ -77,15 +77,12 @@ func (s *SQLstore) SearchUser(input, userID string) (interface{}, error) {
 			Username: username,
 			ID:       id,
 		}
-		var container struct {
-			Profile UserProfileData `json:"profile"`
-			Chat    privateChat     `json:"chat"`
-		}
+		userData := UserContainerData{}
 
-		container.Profile = resultProfile
-		container.Chat = resultChat
-		userMap[resultProfile.Username] = container
-		fmt.Println(container)
+		userData.Profile = resultProfile
+		userData.Chat = resultChat
+		userMap[resultProfile.Username] = userData
+
 	}
 	return userMap, nil
 

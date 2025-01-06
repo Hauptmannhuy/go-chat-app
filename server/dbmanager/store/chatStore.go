@@ -13,6 +13,7 @@ type ChatStore interface {
 	GetChats() (Chats, error)
 	SearchChat(input, userID string) (interface{}, error)
 	LoadSubscribedPrivateChats(id string) (interface{}, error)
+	RetrieveGroupChatCreatorID(chatID string) string
 }
 
 func (s *SQLstore) GetChats() (Chats, error) {
@@ -190,7 +191,7 @@ func (s *SQLstore) SavePrivateChat(user1id, user2id string) (interface{}, error)
 
 	var data PrivateChatInfo
 
-	err = res.Scan(&data.Name, &data.ID)
+	err = res.Scan(&data.ChatName, &data.ChatID)
 	if err != nil {
 		log.Fatal("error scanning in savePrivateChat", err)
 	}
@@ -255,4 +256,16 @@ func (s *SQLstore) LoadSubscribedPrivateChats(userID string) (interface{}, error
 		privateChatsMap[resultRow.ChatID] = resultRow
 	}
 	return privateChatsMap, nil
+}
+
+func (s *SQLstore) RetrieveGroupChatCreatorID(chatID string) string {
+	var creatorID string
+	err := s.DB.QueryRow(`
+		SELECT creator_id FROM group_chats WHERE id = $1
+	`, chatID).Scan(&creatorID)
+	if err != nil {
+		fmt.Println("Error retrieving group creator ID", err)
+		return ""
+	}
+	return creatorID
 }
