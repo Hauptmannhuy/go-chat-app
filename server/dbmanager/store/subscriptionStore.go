@@ -49,13 +49,11 @@ func (s *SQLstore) LoadSubscriptions(userID string) ([]string, error) {
 		res = append(res, subPrivate)
 	}
 
-	fmt.Println("Subs:", res)
 	return res, nil
 
 }
 
 func (s *SQLstore) SaveSubscription(userID, chatID string) error {
-	fmt.Println("393", userID, chatID)
 	tr, _ := s.DB.Begin()
 	_, err := tr.Exec(`
 		INSERT INTO group_chat_subs (user_id, chat_id) VALUES ($1, $2)
@@ -86,10 +84,29 @@ func (s *SQLstore) GetPrivateChatSubs(chatName, sender string) []string {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("found user", receiver)
 	return []string{receiver}
 }
 
 func (s *SQLstore) GetGroupChatSubs(chatName, sender string) []string {
-	return nil
+	var receivers []string
+	query := `
+	SELECT u.username FROM users AS u
+	JOIN group_chat_subs AS gcs
+	ON gcs.user_id = u.id
+	JOIN group_chats AS gc
+	ON gc.id = gcs.chat_id
+	WHERE gc.chat_name == $1 AND u.username != $2;`
+	rows, err := s.DB.Query(query, chatName, sender)
+	if err != nil {
+		log.Fatal("Error during search for subs", err)
+	}
+	for rows.Next() {
+		var receiver string
+		err := rows.Scan(&receiver)
+		if err != nil {
+			log.Fatal("Error during scan", err)
+		}
+		receivers = append(receivers, receiver)
+	}
+	return receivers
 }

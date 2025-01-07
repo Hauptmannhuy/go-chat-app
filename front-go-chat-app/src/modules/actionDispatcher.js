@@ -34,24 +34,20 @@ export function actionDispatcher({chatService, messageService, dbService, search
         dbService.saveGroupChat(response.Data)
       },
       JOIN_CHAT: async () => {
-        const {chat_name, chat_id, creator_id, message} = response.Data
+        const {chat_name, chat_id, creator_id} = response.Data
         chatService.add(chat_name, chat_id, 'group', true)
         messageService.addStorage(chat_name)
-        // messageService.addMessage(message)
         dbService.saveGroupChat({chat_name: chat_name, chat_id: chat_id, creator_id: creator_id})
-        // dbService.saveMessage(message)
       },
       NEW_MESSAGE: async () => {
         dbService.saveMessage(response.Data)
         messageService.addMessage(response.Data)
       },
       NEW_PRIVATE_CHAT: async () => {
-        const {chat_name, chat_id, body, initiator_id, init_username} = response.Data
+        const {chat_name, chat_id} = response.Data
         chatService.add(chat_name,chat_id, true, 'private')
         messageService.addStorage(chat_name)
-        // messageService.addMessage({body: body, chat_name: chat_name, chat_id: chat_id, username: init_username, message_id: 0 })
         dbService.savePrivateChat({chat_name: chat_name, chat_id: chat_id})
-        // dbService.saveMessage({body: body, chat_name: chat_name, user_id: initiator_id, message_id: 0 }) 
       },
       LOAD_SUBS: async () => {
         await dbService.cacheChats(response.Data)
@@ -74,15 +70,14 @@ export function actionDispatcher({chatService, messageService, dbService, search
           for (const message of messages) {
             const {data, type} = message
             if (type == "NEW_MESSAGE") {
+              console.log(data)
               messageService.addMessage(data)
               dbService.saveMessage(data)
             } else if (type == 'NEW_PRIVATE_CHAT') {
-              const {body, chat_name, init_username, message_id, initiator_id, receiver_id, chat_id } = data
+              const { chat_name, initiator_id, receiver_id, chat_id } = data
               chatService.add(data.chat_name,data.chat_id, true, 'private')
               messageService.addStorage(chat_name)
-              messageService.addMessage({body: body, chat_name: chat_name, username: init_username, message_id: message_id})
               dbService.savePrivateChat({user1_id: initiator_id, user2_id: receiver_id, chat_id: chat_id, chat_name: chat_name})
-              dbService.saveMessage({user_id: initiator_id, body: body, chat_name: chat_name, username: init_username}) 
             }
           }
         })

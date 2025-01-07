@@ -36,16 +36,23 @@ const (
 	NEW_GROUP_CHAT
 )
 
-var kindHandlers = map[Kind]interface{}{
-
-	NEW_MESSAGE:      &UserMessage{},
-	NEW_CHAT:         &NewGroupChat{},
-	SEARCH_QUERY:     &SearchQuery{},
-	NEW_PRIVATE_CHAT: &NewPrivateChat{},
-	JOIN_CHAT:        &Subscription{},
-	LOAD_MESSAGES:    &WebSocketMessageStore{},
-	LOAD_SUBS:        &WebSocketChatStore{},
-	NEW_GROUP_CHAT:   &NewGroupChat{},
+func kindHandler(kind Kind) (interface{}, error) {
+	var kindTypes = map[Kind]interface{}{
+		NEW_MESSAGE:      &UserMessage{},
+		NEW_CHAT:         &NewGroupChat{},
+		SEARCH_QUERY:     &SearchQuery{},
+		NEW_PRIVATE_CHAT: &NewPrivateChat{},
+		JOIN_CHAT:        &Subscription{},
+		LOAD_MESSAGES:    &WebSocketMessageStore{},
+		LOAD_SUBS:        &WebSocketChatStore{},
+		NEW_GROUP_CHAT:   &NewGroupChat{},
+	}
+	res, ok := kindTypes[kind]
+	if !ok {
+		log.Println("Unknown kind")
+		return nil, fmt.Errorf("unknown kind")
+	}
+	return res, nil
 }
 
 func (um *UserMessage) assignID(cl *Client) {
@@ -159,15 +166,19 @@ type WebSocketChatStore struct {
 func (wsChatStore *WebSocketChatStore) sendCache(cl *Client, msgT string, wsMsgT int) {
 	dbChatHandler := dbManager.initializeDBhandler("chat")
 	groupChatData, err := dbChatHandler.LoadUserSubscribedChats(cl.index)
+
 	if err != nil {
 		log.Println(err)
 		return
 	}
+
 	privateChatData, err := dbChatHandler.LoadSubscribedPrivateChats(cl.index)
+
 	if err != nil {
 		log.Println(err)
 		return
 	}
+
 	chatContainer := make(map[string]interface{})
 	chatContainer["private"] = privateChatData
 	chatContainer["group"] = groupChatData
@@ -178,10 +189,12 @@ func (wsChatStore *WebSocketChatStore) sendCache(cl *Client, msgT string, wsMsgT
 func (wsMessageStore *WebSocketMessageStore) sendCache(client *Client, msgType string, wsMsgType int) {
 	dbMessageHandler := dbManager.initializeDBhandler("message")
 	data, err := dbMessageHandler.GetChatsMessages(client.subs)
+
 	if err != nil {
 		log.Println(err)
 		writeToSocket(Error{Message: err.Error()}, "ERROR", client, wsMsgType)
 	}
+
 	writeToSocket(data, msgType, client, wsMsgType)
 }
 
@@ -193,14 +206,14 @@ func (um *UserMessage) perform(msgType string, wsMsgType int, sender *Client) {
 	chatID := um.ChatName
 	chat := chatList.Chats[chatID]
 	onlineUsers := chat.checkOnline()
+
 	for _, key := range chat.subscribers {
 		if userOnline := onlineUsers[key]; userOnline {
 			userSocket := chat.members[key]
 			writeToSocket(um, msgType, userSocket, wsMsgType)
-
 		} else {
 			fmt.Println("Saving message to Redis...")
-			redisManager.offlineMessageProcessing(*um, msgType)
+			redisManager.saveMessage(*um)
 		}
 	}
 }
@@ -210,6 +223,7 @@ func (ngc *NewGroupChat) perform(messageType string, wsMsgType int, cl *Client) 
 	chat := chatList.Chats[ngc.Name]
 	chat.AddMember(cl)
 	chat.AppendSubs([]string{cl.username})
+
 	writeToSocket(ngc, messageType, cl, wsMsgType)
 }
 
@@ -245,43 +259,49 @@ func (jn *Subscription) perform(messageType string, wsMsgType int, cl *Client) {
 func (newPrCh *NewPrivateChat) perform(messageType string, wsMsgType int, cl *Client) {
 	newChat := chatList.CreateChat(newPrCh.ChatName)
 	newChat.AddMember(cl)
+
 	split := strings.Split(newPrCh.ChatName, "_")
 	receiverName := split[1]
-	receiverSocket, ok := connSockets.Connections[receiverName]
 	names := strings.Split(newPrCh.ChatName, "_")
 	newChat.AppendSubs([]string{names[0], names[1]})
+
+	receiverSocket, ok := connSockets.Connections[receiverName]
 
 	var group sync.WaitGroup
 	group.Add(1)
 
 	go func() {
 		defer group.Done()
+
 		if ok {
 			newChat.AddMember(receiverSocket)
 			writeToSocket(newPrCh, messageType, receiverSocket, wsMsgType)
 		} else {
-			redisManager.offlineMessageProcessing(*newPrCh, messageType)
+			fmt.Println("Saving new private chat's message to Redis...", newPrCh)
+			redisManager.saveMessage(*newPrCh)
 		}
+
 		writeToSocket(newPrCh, messageType, cl, wsMsgType)
 	}()
 
 	group.Wait()
 
-	s := &UserMessage{
+	s := UserMessage{
 		Body:      newPrCh.Message,
 		UserID:    newPrCh.InitiatorID,
 		ChatName:  newPrCh.ChatName,
 		Username:  newPrCh.Username,
 		MessageID: 0,
 	}
-	s.perform("NEW_MESSAGE", wsMsgType, cl)
 
+	s.perform("NEW_MESSAGE", wsMsgType, cl)
 }
 
 func (m *UserMessage) saveDB() (interface{}, error) {
 	messageHandler := dbManager.initializeDBhandler("message")
 	messageID, err := messageHandler.CreateMessageHandler(m.Body, m.ChatName, m.UserID)
 	m.MessageID = messageID
+
 	return m, err
 }
 
@@ -307,13 +327,16 @@ func (sub *Subscription) saveDB() (interface{}, error) {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	messgHandler := dbManager.initializeDBhandler("message")
 	msgID, err := messgHandler.CreateMessageHandler(sub.BodyMessage, sub.ChatID, sub.UserID)
+
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
+
 	sub.msgID = msgID
 	sub.CreatorID = chatHandler.RetrieveGroupChatCreatorID(sub.ChatID)
 	subHandler.SaveSubHandler(sub.UserID, sub.ChatID)
+
 	return sub, nil
 }
 
@@ -330,7 +353,9 @@ func (sq *SearchQuery) saveDB() (interface{}, error) {
 	}
 
 	for key := range resUsers {
+
 		ok := connSockets.isUserOnline(key)
+
 		if ok {
 			sq.Status[key] = "online"
 		} else {
@@ -391,7 +416,6 @@ func dispatchAction(messageType string, data interface{}, wsMessageT int, cl *Cl
 	action, ok := data.(ActionOnType)
 	if ok {
 		log.Println("performing action")
-		fmt.Println(action)
 		action.perform(messageType, wsMessageT, cl)
 		return
 	} else {
@@ -425,7 +449,11 @@ func processMessage(p []byte, cl *Client) (interface{}, string) {
 		}
 	}
 
-	msg := kindHandlers[env.Type]
+	msg, err := kindHandler(env.Type)
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	err = json.Unmarshal(p, msg)
 
 	if err != nil {

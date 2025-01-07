@@ -26,7 +26,7 @@ func writeToSocket(message interface{}, messageType string, cl *Client, wsMsgTyp
 		log.Println("Error writing to WebSocket:", err)
 		return
 	}
-	fmt.Println("Message sent successfully to client", cl, "Message:", string(p))
+	fmt.Println("Message sent successfully to client", cl.username, "Message:", messageType)
 }
 
 func broadcastUserStatus(status string, peer *Client) {

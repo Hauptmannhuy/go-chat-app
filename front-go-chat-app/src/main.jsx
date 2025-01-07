@@ -4,7 +4,6 @@ import App from './App.jsx'
 import './index.css'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 
-import ChatLayout from './components/ChatLayout.jsx'
 import AuthenticationForm from './components/AuthenticationForm.jsx'
 
 const router = createBrowserRouter([

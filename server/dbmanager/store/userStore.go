@@ -45,7 +45,6 @@ func (s *SQLstore) SearchUser(input, userID string) (map[string]UserContainerDat
 
 	rows, err := s.DB.Query(query, userID, input+"%", userName)
 
-	fmt.Println(rows)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
@@ -61,9 +60,6 @@ func (s *SQLstore) SearchUser(input, userID string) (map[string]UserContainerDat
 			fmt.Println("Row scan error:", err)
 			continue
 		}
-
-		fmt.Printf("username: %s, id: %d, pcID: %d, chatName: %s, user1ID: %d, user2ID: %d, handshake: %v\n",
-			username, id, pcID, chatName, user1ID, user2ID, handshake)
 
 		resultChat := PrivateChatInfo{
 			ChatName:  chatName,
@@ -133,7 +129,6 @@ func (s *SQLstore) AuthenticateAccount(name, pass string) (string, error) {
 	WHERE username = $1
 	`, name)
 
-	fmt.Println(row)
 	err := row.Scan(&data.ID, &data.Username, &data.Password)
 	if err != nil {
 		fmt.Println(err)

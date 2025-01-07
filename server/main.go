@@ -102,8 +102,6 @@ func clientMessages(cl *Client) {
 		cl.mutex.Lock()
 		peer := cl.socket
 
-		fmt.Println(cl.connected)
-
 		wsMessageType, p, err := peer.ReadMessage()
 		cl.mutex.Unlock()
 		if err != nil {

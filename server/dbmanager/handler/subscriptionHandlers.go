@@ -13,3 +13,7 @@ func (h *Handler) SaveSubHandler(userID, chatID string) error {
 func (h *Handler) GetPrivateChatSubs(chatName, sender string) []string {
 	return h.SubscriptionService.GetPrivateChatSubs(chatName, sender)
 }
+
+func (h *Handler) GetGroupChatSubs(chatName, sender string) []string {
+	return h.SubscriptionService.GetGroupChatSubs(chatName, sender)
+}

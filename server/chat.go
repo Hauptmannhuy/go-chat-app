@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -65,7 +64,6 @@ func (ch *Chat) AddMember(cl *Client) {
 	ch.mutex.Lock()
 	defer ch.mutex.Unlock()
 	ch.members[cl.username] = cl
-	fmt.Println(cl.username, "client added to", ch.Name)
 }
 
 func (chat *Chat) AppendSubs(subs []string) {

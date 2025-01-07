@@ -33,7 +33,6 @@ func (s *SQLstore) GetChats() (Chats, error) {
 	}
 
 	for combinedRows.Next() {
-		fmt.Println("got")
 		var name string
 		var chatType string
 		var ID int
@@ -102,14 +101,12 @@ func (s *SQLstore) GetChats() (Chats, error) {
 			ChatType:    chatType,
 			Subscribers: subscribers,
 		}
-		fmt.Println(result[name])
 	}
 	return result, nil
 }
 
 func (s *SQLstore) SaveChat(name, creatorID string) (string, error) {
 
-	fmt.Println(name, creatorID)
 	tr, _ := s.DB.Begin()
 
 	_, err := s.DB.Exec(`
@@ -125,7 +122,6 @@ func (s *SQLstore) SaveChat(name, creatorID string) (string, error) {
 	}
 	tr.Commit()
 	id := s.retrieveGroupChatIndex(name)
-	fmt.Println("group id", id)
 
 	return id, err
 }
@@ -146,7 +142,6 @@ func (s *SQLstore) SearchChat(input, userID string) (interface{}, error) {
 		LIMIT 25
 
 	`, userID, input+"%")
-	fmt.Println(query)
 	rows, err := s.DB.Query(query)
 	if err != nil {
 		fmt.Println("Error during search query:", err)
@@ -160,7 +155,6 @@ func (s *SQLstore) SearchChat(input, userID string) (interface{}, error) {
 			IsSubscribed string `json:"is_subscribed"`
 		}
 		rows.Scan(&data.Name, &data.ID, &data.IsSubscribed)
-		fmt.Println(data)
 		results[data.Name] = data
 	}
 	return results, err
@@ -169,7 +163,6 @@ func (s *SQLstore) SearchChat(input, userID string) (interface{}, error) {
 func (s *SQLstore) SavePrivateChat(user1id, user2id string) (interface{}, error) {
 	user1name := s.retrieveUsername(user1id)
 	user2name := s.retrieveUsername(user2id)
-	fmt.Println("input:", user1id, user2id, user1name, user2name)
 	chatName := user1name + "_" + user2name
 	tr, _ := s.DB.Begin()
 	query := `

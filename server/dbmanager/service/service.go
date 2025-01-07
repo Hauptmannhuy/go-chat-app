@@ -33,6 +33,10 @@ func (s *Service) GetPrivateChatSubs(chatName, sender string) []string {
 	return s.SubscriptionStore.GetPrivateChatSubs(chatName, sender)
 }
 
+func (s *Service) GetGroupChatSubs(chatName, sender string) []string {
+	return s.SubscriptionStore.GetGroupChatSubs(chatName, sender)
+}
+
 func (s *Service) RetrieveChatsMessages(subs []string) (interface{}, error) {
 	return s.MessageStore.GetChatsMessages(subs)
 }

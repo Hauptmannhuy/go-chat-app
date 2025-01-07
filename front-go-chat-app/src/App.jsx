@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import './App.css';
 import ChatLayout from './components/ChatLayout';
-import SearchSection from './components/SearchSection';
 
 import { GlobalContext } from './contexts/GlobalContext';
 
@@ -16,7 +15,7 @@ import useOnline from './modules/useOnline';
 
 function App() {
 
-  const {onlineUsers, onlineStatus, changeOnlineStatus} = useOnline()
+  const {onlineStatus, changeOnlineStatus} = useOnline()
   const {searchResults, searchProfileResults, handleSearchQuery} = useSearchQuery()
   const {messages, addMessage, addMessageStorage, handleMessageLoad} = useMessage()
   const {chats, addChat, handleInitChatLoad, createNewChatObject, handleNewGroupChat } = useChat()
