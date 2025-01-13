@@ -9,6 +9,7 @@ export default function ChatGroup({onSend}){
   console.log("chat changed to", selectedChat)
   console.log("chat messages", chatMessages)
 
+
   return (
     <>
       {(selectedChat.participation == false ) ? (

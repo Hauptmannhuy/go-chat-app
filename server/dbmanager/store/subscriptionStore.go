@@ -95,7 +95,7 @@ func (s *SQLstore) GetGroupChatSubs(chatName, sender string) []string {
 	ON gcs.user_id = u.id
 	JOIN group_chats AS gc
 	ON gc.id = gcs.chat_id
-	WHERE gc.chat_name == $1 AND u.username != $2;`
+	WHERE gc.chat_name = $1 AND u.username != $2`
 	rows, err := s.DB.Query(query, chatName, sender)
 	if err != nil {
 		log.Fatal("Error during search for subs", err)

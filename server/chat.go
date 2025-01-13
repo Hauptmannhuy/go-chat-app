@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -81,6 +82,7 @@ func (ch *Chat) removeMember(username string) {
 }
 
 func (c *Chat) checkOnline() map[string]bool {
+	fmt.Println("Checking chat members", c)
 	resultUsers := make(map[string]bool)
 	for _, username := range c.subscribers {
 		_, ok := c.members[username]

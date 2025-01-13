@@ -22,12 +22,6 @@ export function useChat() {
     })
   }
 
-  function handleNewGroupChat(chat) {
-    const name = chat.chat_name
-    const creator_id = chat.creator_id
-    addChat(name, chat.chat_id, true, 'group')
-  }
-
   const handleInitChatLoad = (chats, type,  participation = false) => {
     console.log(chats)
     if (!chats) return 
@@ -47,5 +41,5 @@ export function useChat() {
   const createNewChatObject = (chatName, id ,participation, type) => ({name: chatName, id: id,participation: participation, type: type})
 
 
-  return {chats, addChat, createNewChatObject, handleInitChatLoad, handleNewGroupChat }
+  return {chats, addChat, createNewChatObject, handleInitChatLoad }
 }

@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { useChat } from "./useChat"
 
+import { useDB } from "./useDB";
+
 
 
 export function useSearchQuery(){
@@ -9,8 +11,9 @@ export function useSearchQuery(){
   const [searchProfileResults, setSearchProfileResults] = useState({})
 
   
-  function handleSearchQuery(data){
 
+
+  function handleSearchQuery(data){
     if (!data || data.length === 0) return
 
     const newProfiles = {}

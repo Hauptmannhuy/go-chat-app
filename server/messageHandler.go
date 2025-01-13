@@ -203,6 +203,7 @@ type Error struct {
 }
 
 func (um *UserMessage) perform(msgType string, wsMsgType int, sender *Client) {
+	fmt.Println("USER MESSAGE PERFORM", um)
 	chatID := um.ChatName
 	chat := chatList.Chats[chatID]
 	onlineUsers := chat.checkOnline()
@@ -246,10 +247,10 @@ func (jn *Subscription) perform(messageType string, wsMsgType int, cl *Client) {
 	}()
 
 	group.Wait()
-	msg := UserMessage{
+	msg := &UserMessage{
 		Body:      jn.BodyMessage,
 		UserID:    jn.UserID,
-		ChatName:  jn.ChatID,
+		ChatName:  jn.ChatName,
 		Username:  jn.Username,
 		MessageID: jn.msgID,
 	}

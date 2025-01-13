@@ -1,20 +1,28 @@
 import { useState } from "react"
+import { useDB } from "./useDB"
 
 export function useMessage(){
+ 
 
   const [messages, setMessageStorages] = useState({})
 
-  function addMessageStorage(chatName){
-    setMessageStorages((messages) => {
-      const newMessages = {...messages}
+  function addMessageStorage(chatName) {
+    setMessageStorages((prevMessages) => {
+      const newMessages = { ...prevMessages }
       newMessages[chatName] = []
       return newMessages
     })
   }
 
+  /**
+   * 
+   * @param {Message} message 
+   */
+  
   function addMessage(message){
-    setMessageStorages((messages) => {
-      const newMessages = {...messages}
+    
+    setMessageStorages((prevMessages) => {
+      const newMessages = {...prevMessages}
       const chatMessages = newMessages[message.chat_name]
       const isDublicate = chatMessages.some((val) => (val.message_id == message.message_id))
       if (isDublicate) {
@@ -28,21 +36,27 @@ export function useMessage(){
 
 
  /**
- * @param {Array} data 
+ * @param {import("./useDB").Message[]} data 
  */
 
   function handleMessageLoad(data) {
-    const names = data.map((el) => (el.chat_name)).filter((val, index, self) => (index == self.indexOf(val,0)))
-
-    names.forEach((chatName) => {
-      addMessageStorage(chatName)
-    })
-    
     data.forEach(message => {
       addMessage(message)
-    });
+    })
+  }
+
+   /**
+   * @param {import("./useDB").Message[]} data 
+   */
+
+  function initMessageStorages(data) {
+    console.log("initializing message storage", data)
+    data.forEach((chat) => {
+      addMessageStorage(chat.chat_name)
+    })
   }
 
 
-  return {messages, addMessageStorage, addMessage, handleMessageLoad}
+
+  return {messages, addMessageStorage, addMessage, handleMessageLoad, initMessageStorages}
 }

@@ -17,8 +17,8 @@ function App() {
 
   const {onlineStatus, changeOnlineStatus} = useOnline()
   const {searchResults, searchProfileResults, handleSearchQuery} = useSearchQuery()
-  const {messages, addMessage, addMessageStorage, handleMessageLoad} = useMessage()
-  const {chats, addChat, handleInitChatLoad, createNewChatObject, handleNewGroupChat } = useChat()
+  const {messages, addMessage, addMessageStorage, handleMessageLoad, initMessageStorages} = useMessage()
+  const {chats, addChat, handleInitChatLoad } = useChat()
   const [selectedChat, selectChat] = useState(null)
 
   const {connectDB, saveMessage, savePrivateChat, saveGroupChat, cacheChats, cacheMessages, getChats, getMessages} = useDB(fetchCache)
@@ -60,13 +60,24 @@ function App() {
 
     privateChatReq.addEventListener("success", () => {
       const result = privateChatReq.result
-      console.log(privateChatReq)
       handleInitChatLoad(result, "private", true)
+      initMessageStorages(result)
+    })
+
+    privateChatReq.addEventListener("error", () => {
+      console.error("Error during indexDB request",privateChatReq.error)
     })
 
     groupChatReq.addEventListener("success", () => {
       const result = groupChatReq.result
+      console.log("group chat result",result)
       handleInitChatLoad(result, "group", true)
+      initMessageStorages(result)
+    })
+
+    groupChatReq.addEventListener("error", () => {
+      console.error("Error during indexDB request",groupChatReq.error)
+
     })
     
     messageReq.addEventListener("success", () => {

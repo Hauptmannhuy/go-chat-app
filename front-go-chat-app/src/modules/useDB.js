@@ -2,6 +2,32 @@ import { useRef } from "react";
 
 
 
+/**
+ * @typedef {Object} PrivateChat
+ * @property {string} chat_id 
+ * @property {string} chat_name 
+ * @property {string} user1_id
+ * @property {string} user2_id
+ */
+
+
+/**
+ * @typedef {Object} GroupChat
+ * @property {string} chat_id 
+ * @property {string} chat_name 
+ * @property {string} creator_id 
+ */
+
+ /**
+ * @typedef {Object} Message
+ * @property {string} message_id 
+ * @property {string} body 
+ * @property {string} chat_name 
+ * @property {string} username
+ * @property {string} user_id
+ * @property {string} id 
+ */
+
 export function useDB() {
   const indexDB = useRef(null)
   const dbName = 'test-db'
@@ -57,16 +83,25 @@ export function useDB() {
     return objectStore
   }
 
+
+   /**
+   * @param {Object.<string, Message[]>} data
+   */
+
  async function cacheMessages(data){
     if (!data) return
+
     const messageStore = initDBtransaction("messages")
-    console.log(data)
     const objectChatNames = Object.keys(data)
+
     for (let i = 0; i < objectChatNames.length; i++) {
+
       const chatName = objectChatNames[i]
       const chatObj = data[chatName]
+
       for (let j = 0; j < chatObj.length; j ++) {
-        const newMessageObject = {message_id: chatObj[j].message_id, body: chatObj[j].body, chat_name: chatObj[j].chat_name, username: chatObj[j].username }
+        
+        const newMessageObject = chatObj[j]
         const addRequest = messageStore.add(newMessageObject)
 
         addRequest.addEventListener("error", () => {
@@ -77,7 +112,10 @@ export function useDB() {
     }
   }
 
-  
+  /**
+   * 
+   * @param {{private: Object.<string, PrivateChat>, group: Object.<string, GroupChat> }} data 
+   */
  async function cacheChats(data){
     try {
       if (!data || !data.private){
@@ -101,24 +139,33 @@ export function useDB() {
     }  
 }
 
+/**
+ * @param {Object.<string, (GroupChat|PrivateChat)>} data 
+ * @param {string} storageName 
+ */
 
 function cacheChat(data, storageName) {
-  console.log(data)
   const storage = initDBtransaction(storageName)
   const keys = Object.keys(data)
+
   keys.forEach(name => {
+
     const req = storage.add(data[name], data[name].chat_id)
+
     req.addEventListener("success", () => {
       console.log("req success", req.result)
     })
+
     req.addEventListener("error", () => {
       console.log("req error", req.error)
+   })
   })
-})
 }
 
 
-
+   /**
+   * @returns {{privateChatReq: IDBObjectStore, groupChatReq: IDBObjectStore}}
+   */
   function getChats(){
     console.log("get chats")
     const groupChatsStore = initDBtransaction("group_chats")
@@ -126,12 +173,15 @@ function cacheChat(data, storageName) {
     return { privateChatReq: privateChatsStore.getAll(), groupChatReq: groupChatsStore.getAll() }
   }
 
-
   function getMessages() {
     const messageStore = initDBtransaction("messages")
     const request = messageStore.getAll()
     return request
   }
+
+   /**
+   * @param {Message} message 
+   */
   
   function saveMessage(message){
     console.log("db mesg", message)
@@ -145,10 +195,14 @@ function cacheChat(data, storageName) {
   })
   }
 
+  /**
+   * @param {PrivateChat} chat 
+   */
+
   function savePrivateChat(chat){
-    console.log(chat)
     const privateChatsStore = initDBtransaction("private_chats")
     let req = privateChatsStore.add(chat, chat.chat_id)
+
     req.addEventListener("success", () =>{
       console.log("req success",req.result)
     })
@@ -157,19 +211,21 @@ function cacheChat(data, storageName) {
     })
   }
 
+ 
+  
+  /** 
+  * @param {GroupChat} chat
+  */
+
   function saveGroupChat(chat){
     const groupChatsStore = initDBtransaction("group_chats")
-    const newGroupChatObj = {
-      chat_id: chat.chat_id,
-      name: chat.chat_name,
-      creator_id: chat.creator_id
-    }
-    let req = groupChatsStore.add(newGroupChatObj, chat.chat_id)
+
+    let req = groupChatsStore.add(chat, chat.chat_id)
     req.addEventListener("success", () =>{
-      console.log("req success",req.result)
+      console.log("Group chat successfully saved", req.result)
     })
     req.addEventListener("error",()=>{
-      console.log("req success",req.error)
+      console.log("Error saving group chat", req.error)
     })
   }
 
