@@ -15,24 +15,21 @@ function ChatList({onSelect, searchStatus}) {
     <div className="chat-list">
 
     {chatKeys.map((key) => (
-        <div className="chat-snippet" onClick={ () => {onSelect(currentChats[key]) }}>
-          { 
-            < ChatSnippet 
-              name={key}
-              /> 
-          }</div>
-      )
+      < ChatSnippet 
+      name={key}
+      currentChats = {currentChats}
+      onSelect = {onSelect}
+      />
+    )
+  )}
 
-        
-    )}
-    </div>
-
+  </div>
    
+  
   
   </>
   )
 }
-
 
 
 export default ChatList

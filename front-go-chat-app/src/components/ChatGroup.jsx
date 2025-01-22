@@ -1,11 +1,11 @@
-import { useContext, useState } from "react"
+import { useContext } from "react"
 import { GlobalContext } from "../contexts/GlobalContext"
 import  { MessagesDisplay } from "../components/MessagesDisplay"
+import { MessageInput } from "./MessageInput"
 
 export default function ChatGroup({onSend}){
   const {selectedChat, messages, onlineStatus} = useContext(GlobalContext)
   const chatMessages = messages[selectedChat.name]
-  const [inputValue, setInputValue] = useState("")
   console.log("chat changed to", selectedChat)
   console.log("chat messages", chatMessages)
 
@@ -18,11 +18,15 @@ export default function ChatGroup({onSend}){
     :
     (null)
     }
+      <div className="message-display-container">
       < MessagesDisplay
       chatMessages={chatMessages}/>
 
-      <input type="text" onChange={(e) => (setInputValue(e.target.value))} />
-      <button onClick={() => onSend(selectedChat, inputValue)}>Send</button>
+       <MessageInput
+        onSend={onSend}
+        selectedChat={selectedChat}/>
+      </div>
+
       </>
     )
   

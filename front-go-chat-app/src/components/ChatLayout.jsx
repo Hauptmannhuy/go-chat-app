@@ -2,7 +2,6 @@ import { useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 
-import "../assets/chatBrowser.css"
 import ChatDialogue from "./ChatDialogue";
 import ChatList from "./ChatList";
 import SignOutButton from "./SignOutButton";
@@ -68,31 +67,34 @@ function ChatLayout(){
   }
  
   return (
-  <>
-  <SignOutButton />
-    <SearchSection
-    onSearch={searchHandler}
-    />
+  <div className="container">
 
-    <CreateGroupChat/>
-
-    <ChatList
-    onSelect={selectChatHandler}
-    searchStatus={searchInputStatus}/>
-
-    
-    {selectedChat ? 
-    (
-      renderSelectedChat()
-    )
-    :
-    (
-      null
-    )}
+  <div className="left-part">
+    <SignOutButton />
+      <SearchSection
+      onSearch={searchHandler}
+      />
+      <CreateGroupChat/>
+      <ChatList
+      onSelect={selectChatHandler}
+      searchStatus={searchInputStatus}/>
+  </div>
 
     
+    <div className="right-part">
+      {selectedChat ?
+      (
+        renderSelectedChat()
+      )
+      :
+      (
+        null
+      )}
+    </div>
 
-  </>
+    
+
+    </div>
   )
 }
 

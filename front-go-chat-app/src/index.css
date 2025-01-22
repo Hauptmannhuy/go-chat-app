@@ -24,8 +24,9 @@ a:hover {
 
 body {
   margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
+  /* min-width: 320px; */
+  /* min-height: 100vh; */
+  height: 100vh;
 }
 
 h1 {
@@ -65,7 +66,29 @@ button:focus-visible {
   }
 }
 
+
+
+
+
 .messages-display {
   display: flex;
   flex-direction: column;
+  
+}
+
+.message {
+  position: relative;
+  max-width: 50%;
+}
+
+.not-user {
+  align-self: flex-end;
+}
+
+.message-text {
+  color: white;
+  background-color: #7b81f1;
+  max-width: fit-content;
+  padding: 8px;
+  border-radius: 5%;
 }
