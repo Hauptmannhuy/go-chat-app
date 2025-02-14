@@ -5,16 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
 
-	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
 )
 
-var redisManager redisWrapper
+var redisDB redisManager
 
 type redisBuffer interface {
-	saveToBuff()
+	saveToBuff(receiverID int)
 }
 
 type redisContainer struct {
@@ -22,24 +20,27 @@ type redisContainer struct {
 	Data interface{} `json:"data"`
 }
 
-type redisWrapper struct {
+type redisManager struct {
 	redis *redis.Client
 }
 
-func handleOfflineMessages(cl *Client) {
-	data := map[string][]interface{}{}
-	for _, sub := range cl.subs {
-		key := fmt.Sprintf("offline:messages:%s:%s", sub, cl.username)
-		if ok := redisManager.hasMessages(key); ok {
-			data[sub] = redisManager.getOffMessages(key)
+func getRedis() *redisManager {
+	if redisDB.redis == nil {
+		fmt.Println("2")
+
+		redisDB = redisManager{
+			redis: redis.NewClient(&redis.Options{
+				Addr:     "localhost:6379",
+				Password: "",
+				DB:       0,
+				Protocol: 3,
+			}),
 		}
 	}
-	if len(data) > 0 {
-		writeToSocket(data, "OFFLINE_MESSAGES", cl, websocket.TextMessage)
-	}
+	return &redisDB
 }
 
-func (r *redisWrapper) hasMessages(key string) bool {
+func (r *redisManager) hasMessages(key string) bool {
 	var ctx = context.Background()
 	len, err := r.redis.LLen(ctx, key).Result()
 	if err != nil {
@@ -48,11 +49,10 @@ func (r *redisWrapper) hasMessages(key string) bool {
 	if len > 0 {
 		return true
 	}
-	fmt.Println("No messages to retrieve")
 	return false
 }
 
-func (r *redisWrapper) getOffMessages(key string) []interface{} {
+func (r *redisManager) getOffMessages(key string) []interface{} {
 	var ctx = context.Background()
 	messages := []interface{}{}
 	req := r.redis.LRange(ctx, key, 0, -1)
@@ -80,7 +80,6 @@ func (r *redisWrapper) getOffMessages(key string) []interface{} {
 
 		err = json.Unmarshal(importRedisContainer.Data, &resultData.Data)
 
-		fmt.Println("data container", resultData)
 		if err != nil {
 			fmt.Println("error data unmarshaling redis message", err)
 		}
@@ -97,19 +96,9 @@ func (r *redisWrapper) getOffMessages(key string) []interface{} {
 	return messages
 }
 
-func (r *redisWrapper) saveMessage(msg redisBuffer) {
-	msg.saveToBuff()
-}
-
-func (um UserMessage) saveToBuff() {
+func (um UserMessage) saveToBuff(receiverID int) {
 	var ctx = context.Background()
-	var receivers []string
-	subManager := dbManager.initializeDBhandler("subscription")
-	if chatType(um.ChatName) == "private" {
-		receivers = subManager.GetPrivateChatSubs(um.ChatName, um.Username)
-	} else {
-		receivers = subManager.GetGroupChatSubs(um.ChatName, um.Username)
-	}
+
 	container := redisContainer{
 		Type: "NEW_MESSAGE",
 		Data: um,
@@ -120,21 +109,17 @@ func (um UserMessage) saveToBuff() {
 		log.Println("Error while serializing cache data to redis")
 	}
 
-	for _, receiver := range receivers {
+	key := fmt.Sprintf("offline:messages:%s:%d", um.ChatName, receiverID)
+	getRedis().redis.RPush(ctx, key, json)
 
-		key := fmt.Sprintf("offline:messages:%s:%s", um.ChatName, receiver)
-		redisManager.redis.RPush(ctx, key, json)
-
-		if err != nil {
-			fmt.Println("error retrieving redis message", err)
-		}
+	if err != nil {
+		fmt.Println("error retrieving redis message", err)
 	}
 }
 
-func (npc NewPrivateChat) saveToBuff() {
+func (npc NewPrivateChat) saveToBuff(receiverID int) {
 	ctx := context.Background()
-	receiverName := strings.Split(npc.ChatName, "_")[1]
-	key := fmt.Sprintf("offline:messages:%s:%s", npc.ChatName, receiverName)
+	key := fmt.Sprintf("offline:messages:%s:%d", npc.ChatName, receiverID)
 
 	container := redisContainer{
 		Type: "NEW_PRIVATE_CHAT",
@@ -146,13 +131,5 @@ func (npc NewPrivateChat) saveToBuff() {
 		log.Println(err)
 	}
 
-	redisManager.redis.LPush(ctx, key, json)
-}
-
-func chatType(chatName string) string {
-	if len(strings.Split(chatName, "_")) > 1 {
-		return "private"
-	} else {
-		return "group"
-	}
+	getRedis().redis.LPush(ctx, key, json)
 }

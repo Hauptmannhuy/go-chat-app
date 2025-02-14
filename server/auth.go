@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -46,7 +47,6 @@ func generateToken(id string) (string, error) {
 }
 
 func parseToken(tokenS string) (*jwt.Token, bool) {
-
 	token, err := jwt.Parse(tokenS, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -54,7 +54,7 @@ func parseToken(tokenS string) (*jwt.Token, bool) {
 		return []byte(os.Getenv("KEY")), nil
 	})
 	if err != nil {
-		log.Fatal(err)
+		log.Println("error during parse", err)
 		return nil, false
 	}
 	return token, true
@@ -74,9 +74,13 @@ func verifyToken(c *http.Cookie) bool {
 	return true
 }
 
-func fetchUserID(tokenS string) string {
+func fetchUserID(tokenS string) int {
 	token, _ := parseToken(tokenS)
 	claims, _ := token.Claims.(jwt.MapClaims)
 	val := claims["id"].(string)
-	return val
+	n, err := strconv.Atoi(val)
+	if err != nil {
+		log.Fatal("error converting sting to int", err)
+	}
+	return n
 }

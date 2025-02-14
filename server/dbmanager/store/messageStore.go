@@ -6,11 +6,11 @@ import (
 )
 
 type MessageStore interface {
-	SaveMessage(body, chatID, userID string) (int, error)
+	SaveMessage(body, chatName string, userID int) (int, error)
 	GetChatsMessages(subs []string) (interface{}, error)
 }
 
-func (s *SQLstore) SaveMessage(body, chatName, userID string) (int, error) {
+func (s *SQLstore) SaveMessage(body, chatName string, userID int) (int, error) {
 	messageID, err := s.retrieveLastMessageID(chatName)
 	if err != nil {
 		return -1, err

@@ -1,10 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
-	"sync"
 
 	_ "github.com/golang-migrate/migrate/v4/source/file" // Import the file source driver
 	_ "github.com/lib/pq"
@@ -23,7 +21,7 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
-	redisManager = redisWrapper{
+	redisDB = redisManager{
 		redis: redis.NewClient(&redis.Options{
 			Addr:     "localhost:6379",
 			Password: "",
@@ -37,85 +35,18 @@ func main() {
 		return
 	}
 
-	chatDBhandler := dbManager.initializeDBhandler("chat")
-	chatList.initializeRooms(&chatDBhandler)
+	hub := newHub()
+	go hub.run()
 
-	connSockets.initialize()
-	err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler())
+	mux := http.NewServeMux()
+	mux.HandleFunc("/sign_in", signInHandler)
+	mux.HandleFunc("/sign_up", signUpHandler)
+	mux.HandleFunc("/sign_out", SignOutHandler)
+	mux.HandleFunc("/chat", hub.handleClientConn)
 
-	if err != nil {
-		log.Println(err)
-	}
-}
-
-type Client struct {
-	index     string
-	username  string
-	socket    *websocket.Conn
-	connected bool
-	mutex     sync.Mutex
-	subs      []string
-}
-
-func initializeWSconn(w http.ResponseWriter, r *http.Request) *Client {
-
-	conn, err := upgrader.Upgrade(w, r, nil)
+	err = http.ListenAndServe(":8090", NewAuthMiddlewareHandler(mux))
 
 	if err != nil {
 		log.Println(err)
-		return nil
-
-	}
-	usernameCookie, _ := r.Cookie("username")
-	token, _ := r.Cookie("token")
-	userIndex := fetchUserID(token.Value)
-	subHandler := dbManager.initializeDBhandler("subscription")
-	subs, err := subHandler.LoadSubscriptions(userIndex)
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
-
-	return &Client{
-		connected: true,
-		username:  usernameCookie.Value,
-		socket:    conn,
-		mutex:     sync.Mutex{},
-		subs:      subs,
-		index:     userIndex,
-	}
-}
-
-func (c *Client) CloseConnection() {
-	c.connected = false
-}
-
-func clientMessages(cl *Client) {
-	defer func() {
-		cl.socket.Close()
-		connSockets.removeClient(cl)
-		chatList.removeClient(cl)
-		broadcastUserStatus("offline", cl)
-	}()
-	defer fmt.Println("Connection closed with", cl)
-	for {
-		cl.mutex.Lock()
-		peer := cl.socket
-
-		wsMessageType, p, err := peer.ReadMessage()
-		cl.mutex.Unlock()
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		data, dataType := processMessage(p, cl)
-		data, err = dbManager.handleDatabase(data)
-		if err != nil {
-			data = Error{err.Error()}
-			dataType = "ERROR"
-			log.Println(err)
-		}
-		dispatchAction(dataType, data, wsMessageType, cl)
-
 	}
 }

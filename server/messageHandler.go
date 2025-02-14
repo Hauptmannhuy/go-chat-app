@@ -1,26 +1,89 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"go-chat-app/dbmanager/store"
 	"log"
 	"strings"
-	"sync"
-
-	"github.com/gorilla/websocket"
 )
 
 //go:generate jsonenums -type=Kind
 
-type ActionOnType interface {
-	perform(messageType string, wsMsgType int, cl *Client)
-	saveDB() (interface{}, error)
+type MessageHandler interface {
+	// execute(messageType string, wsMsgType int, cl *Client)
+	execute() (interface{}, error)
 	assignID(cl *Client)
 }
 
-type Cacheable interface {
-	sendCache(cl *Client, messageType string, wsMessageT int)
+type wsMessage struct {
+	owner            *Client
+	payload          interface{}
+	broadcastHandler broadcastHandler
+}
+
+type OutEnvelope struct {
+	Type string
+	Data interface{}
+}
+
+type JSONenvelope struct {
+	Type Kind
+}
+
+type UserMessage struct {
+	Body      string `json:"body"`
+	ChatName  string `json:"chat_name"`
+	UserID    int    `json:"user_id"`
+	Username  string `json:"username"`
+	State     string `json:"state"`
+	MessageID int    `json:"message_id"`
+}
+
+type Subscription struct {
+	ChatID      int    `json:"chat_id"`
+	UserID      int    `json:"user_id"`
+	BodyMessage string `json:"body_message"`
+	Username    string `json:"username"`
+	CreatorID   int    `json:"creator_id"`
+	ChatName    string `json:"chat_name"`
+	msgID       int
+}
+
+type SearchQuery struct {
+	Input         string `json:"input"`
+	UserID        int    `json:"user_id"`
+	SearchResults interface{}
+	Status        map[string]string `json:"status"`
+}
+
+type NewGroupChat struct {
+	Name      string `json:"chat_name"`
+	ID        int    `json:"chat_id"`
+	CreatorID int    `json:"creator_id"`
+}
+type NewPrivateChat struct {
+	ChatName    string `json:"chat_name"`
+	ChatID      int    `json:"chat_id"`
+	ReceiverID  int    `json:"receiver_id"`
+	InitiatorID int    `json:"initiator_id"`
+	Username    string `json:"init_username"`
+	Message     string `json:"body"`
+	MessageID   int    `json:"message_id"`
+	ChatType    string `json:"chat_type"`
+}
+
+type OfflineMessages struct {
+	Messages [][]UserMessage
+}
+
+type WebSocketMessageStore struct {
+	UserID int
+	Data   interface{}
+}
+
+type WebSocketChatStore struct {
+	UserID int
+	Data   interface{}
 }
 
 type Kind int
@@ -55,38 +118,6 @@ func kindHandler(kind Kind) (interface{}, error) {
 	return res, nil
 }
 
-func (um *UserMessage) assignID(cl *Client) {
-	um.UserID = cl.index
-	um.Username = cl.username
-
-}
-
-func (npc *NewPrivateChat) assignID(cl *Client) {
-	npc.InitiatorID = cl.index
-	npc.Username = cl.username
-}
-
-func (ngc *NewGroupChat) assignID(cl *Client) {
-	ngc.CreatorID = cl.index
-}
-
-func (sq *SearchQuery) assignID(cl *Client) {
-	sq.UserID = cl.index
-
-}
-
-func (sub *Subscription) assignID(cl *Client) {
-	sub.UserID = cl.index
-	sub.Username = cl.username
-}
-func (wsChatStore *WebSocketChatStore) assignID(cl *Client) {
-	wsChatStore.UserID = cl.index
-}
-
-func (wsMessageStore *WebSocketMessageStore) assignID(cl *Client) {
-	wsMessageStore.UserID = cl.index
-}
-
 func (k *Kind) toValue() string {
 	var keys = map[Kind]string{
 		0: "NEW_MESSAGE",
@@ -100,213 +131,118 @@ func (k *Kind) toValue() string {
 	return keys[*k]
 }
 
-type OutEnvelope struct {
-	Type string
-	Data interface{}
+func defineAlgo(data interface{}) broadcastHandler {
+	switch data.(type) {
+	case *UserMessage:
+		fmt.Println("return new message algo")
+		return &newMsgAlgo{}
+	case *NewGroupChat:
+		fmt.Println("return new grch algo")
+		return &newGroupChatAlgo{}
+	case *NewPrivateChat:
+		fmt.Println("return new prch algo")
+		return &newDialogueAlgo{}
+	case *SearchQuery:
+		fmt.Println("return  sq algo")
+		return &searchQueryAlgo{}
+	case *Subscription:
+		fmt.Println("return  sub algo")
+		return &newSubAlgo{}
+	case *WebSocketChatStore:
+		fmt.Println("return  chatstore algo")
+		return &chatStoreAlgo{}
+	case *WebSocketMessageStore:
+		fmt.Println("return  messagestore algo")
+		return &messageStoreAlgo{}
+	default:
+		fmt.Println("return  error algo")
+		return &errorAlgo{}
+	}
 }
 
-type JSONenvelope struct {
-	Type Kind
+func (um *UserMessage) assignID(cl *Client) {
+	um.UserID = cl.id
+	um.Username = cl.username
+	fmt.Println("client username", cl.username)
 }
 
-type UserMessage struct {
-	Body      string `json:"body"`
-	ChatName  string `json:"chat_name"`
-	UserID    string `json:"user_id"`
-	Username  string `json:"username"`
-	State     string `json:"state"`
-	MessageID int    `json:"message_id"`
+func (npc *NewPrivateChat) assignID(cl *Client) {
+	npc.InitiatorID = cl.id
+	npc.Username = cl.username
 }
 
-type Subscription struct {
-	ChatID      string `json:"chat_id"`
-	UserID      string `json:"user_id"`
-	BodyMessage string `json:"body_message"`
-	Username    string `json:"username"`
-	CreatorID   string `json:"creator_id"`
-	ChatName    string `json:"chat_name"`
-	msgID       int
+func (ngc *NewGroupChat) assignID(cl *Client) {
+	ngc.CreatorID = cl.id
 }
 
-type SearchQuery struct {
-	Input         string `json:"input"`
-	UserID        string `json:"user_id"`
-	SearchResults interface{}
-	Status        map[string]string `json:"status"`
+func (sq *SearchQuery) assignID(cl *Client) {
+	sq.UserID = cl.id
+
 }
 
-type NewGroupChat struct {
-	Name      string `json:"chat_name"`
-	ID        string `json:"chat_id"`
-	CreatorID string `json:"creator_id"`
+func (sub *Subscription) assignID(cl *Client) {
+	sub.UserID = cl.id
+	sub.Username = cl.username
 }
-type NewPrivateChat struct {
-	ChatName    string `json:"chat_name"`
-	ChatID      int    `json:"chat_id"`
-	ReceiverID  string `json:"receiver_id"`
-	InitiatorID string `json:"initiator_id"`
-	Username    string `json:"init_username"`
-	Message     string `json:"body"`
-	MessageID   int    `json:"message_id"`
-	ChatType    string `json:"chat_type"`
+func (wsChatStore *WebSocketChatStore) assignID(cl *Client) {
+	wsChatStore.UserID = cl.id
 }
 
-type OfflineMessages struct {
-	Messages [][]UserMessage
+func (wsMessageStore *WebSocketMessageStore) assignID(cl *Client) {
+	wsMessageStore.UserID = cl.id
 }
 
-type WebSocketMessageStore struct {
-	UserID string
-}
-
-type WebSocketChatStore struct {
-	UserID string
-}
-
-func (wsChatStore *WebSocketChatStore) sendCache(cl *Client, msgT string, wsMsgT int) {
+func (wsChatStore *WebSocketChatStore) execute() (interface{}, error) {
 	dbChatHandler := dbManager.initializeDBhandler("chat")
-	groupChatData, err := dbChatHandler.LoadUserSubscribedChats(cl.index)
+	groupChatData, err := dbChatHandler.LoadUserSubscribedChats(wsChatStore.UserID)
 
 	if err != nil {
 		log.Println(err)
-		return
+		return nil, err
 	}
 
-	privateChatData, err := dbChatHandler.LoadSubscribedPrivateChats(cl.index)
+	privateChatData, err := dbChatHandler.LoadSubscribedPrivateChats(wsChatStore.UserID)
 
 	if err != nil {
 		log.Println(err)
-		return
+		return nil, err
 	}
 
 	chatContainer := make(map[string]interface{})
 	chatContainer["private"] = privateChatData
 	chatContainer["group"] = groupChatData
+	wsChatStore.Data = chatContainer
 
-	writeToSocket(chatContainer, "LOAD_SUBS", cl, websocket.TextMessage)
+	return chatContainer, nil
 }
 
-func (wsMessageStore *WebSocketMessageStore) sendCache(client *Client, msgType string, wsMsgType int) {
-	dbMessageHandler := dbManager.initializeDBhandler("message")
-	data, err := dbMessageHandler.GetChatsMessages(client.subs)
-
+func (wsMessageStore *WebSocketMessageStore) execute() (interface{}, error) {
+	db := getDB()
+	dbMessageHandler := db.initializeDBhandler("message")
+	dbSubsHandler := db.initializeDBhandler("subscription")
+	subs, err := dbSubsHandler.LoadSubscriptions(wsMessageStore.UserID)
 	if err != nil {
-		log.Println(err)
-		writeToSocket(Error{Message: err.Error()}, "ERROR", client, wsMsgType)
+		return nil, err
 	}
-
-	writeToSocket(data, msgType, client, wsMsgType)
+	data, err := dbMessageHandler.GetChatsMessages(subs)
+	wsMessageStore.Data = data
+	return data, err
 }
 
 type Error struct {
 	Message string
 }
 
-func (um *UserMessage) perform(msgType string, wsMsgType int, sender *Client) {
-	fmt.Println("USER MESSAGE PERFORM", um)
-	chatID := um.ChatName
-	chat := chatList.Chats[chatID]
-	onlineUsers := chat.checkOnline()
+func (m *UserMessage) execute() (interface{}, error) {
 
-	for _, key := range chat.subscribers {
-		if userOnline := onlineUsers[key]; userOnline {
-			userSocket := chat.members[key]
-			writeToSocket(um, msgType, userSocket, wsMsgType)
-		} else {
-			fmt.Println("Saving message to Redis...")
-			redisManager.saveMessage(*um)
-		}
-	}
-}
-
-func (ngc *NewGroupChat) perform(messageType string, wsMsgType int, cl *Client) {
-	chatList.CreateChat(ngc.Name)
-	chat := chatList.Chats[ngc.Name]
-	chat.AddMember(cl)
-	chat.AppendSubs([]string{cl.username})
-
-	writeToSocket(ngc, messageType, cl, wsMsgType)
-}
-
-func (sc *SearchQuery) perform(messageType string, wsMsgType int, cl *Client) {
-
-	writeToSocket(sc, messageType, cl, wsMsgType)
-}
-
-func (jn *Subscription) perform(messageType string, wsMsgType int, cl *Client) {
-	chat := chatList.Chats[jn.ChatName]
-	chat.AddMember(cl)
-	chat.AppendSubs([]string{cl.username})
-
-	var group sync.WaitGroup
-	group.Add(1)
-
-	go func() {
-		defer group.Done()
-		writeToSocket(jn, messageType, cl, wsMsgType)
-	}()
-
-	group.Wait()
-	msg := &UserMessage{
-		Body:      jn.BodyMessage,
-		UserID:    jn.UserID,
-		ChatName:  jn.ChatName,
-		Username:  jn.Username,
-		MessageID: jn.msgID,
-	}
-	msg.perform("NEW_MESSAGE", wsMsgType, cl)
-}
-
-func (newPrCh *NewPrivateChat) perform(messageType string, wsMsgType int, cl *Client) {
-	newChat := chatList.CreateChat(newPrCh.ChatName)
-	newChat.AddMember(cl)
-
-	split := strings.Split(newPrCh.ChatName, "_")
-	receiverName := split[1]
-	names := strings.Split(newPrCh.ChatName, "_")
-	newChat.AppendSubs([]string{names[0], names[1]})
-
-	receiverSocket, ok := connSockets.Connections[receiverName]
-
-	var group sync.WaitGroup
-	group.Add(1)
-
-	go func() {
-		defer group.Done()
-
-		if ok {
-			newChat.AddMember(receiverSocket)
-			writeToSocket(newPrCh, messageType, receiverSocket, wsMsgType)
-		} else {
-			fmt.Println("Saving new private chat's message to Redis...", newPrCh)
-			redisManager.saveMessage(*newPrCh)
-		}
-
-		writeToSocket(newPrCh, messageType, cl, wsMsgType)
-	}()
-
-	group.Wait()
-
-	s := UserMessage{
-		Body:      newPrCh.Message,
-		UserID:    newPrCh.InitiatorID,
-		ChatName:  newPrCh.ChatName,
-		Username:  newPrCh.Username,
-		MessageID: 0,
-	}
-
-	s.perform("NEW_MESSAGE", wsMsgType, cl)
-}
-
-func (m *UserMessage) saveDB() (interface{}, error) {
-	messageHandler := dbManager.initializeDBhandler("message")
+	messageHandler := getDB().initializeDBhandler("message")
 	messageID, err := messageHandler.CreateMessageHandler(m.Body, m.ChatName, m.UserID)
 	m.MessageID = messageID
-
+	fmt.Println(m)
 	return m, err
 }
 
-func (nc *NewGroupChat) saveDB() (interface{}, error) {
+func (nc *NewGroupChat) execute() (interface{}, error) {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	subHandler := dbManager.initializeDBhandler("subscription")
 	id, err := chatHandler.CreateChatHandler(nc.Name, nc.CreatorID)
@@ -323,11 +259,11 @@ func (nc *NewGroupChat) saveDB() (interface{}, error) {
 	return nc, err
 }
 
-func (sub *Subscription) saveDB() (interface{}, error) {
+func (sub *Subscription) execute() (interface{}, error) {
 	subHandler := dbManager.initializeDBhandler("subscription")
 	chatHandler := dbManager.initializeDBhandler("chat")
 	messgHandler := dbManager.initializeDBhandler("message")
-	msgID, err := messgHandler.CreateMessageHandler(sub.BodyMessage, sub.ChatID, sub.UserID)
+	msgID, err := messgHandler.CreateMessageHandler(sub.BodyMessage, sub.ChatName, sub.UserID)
 
 	if err != nil {
 		log.Println(err)
@@ -341,7 +277,7 @@ func (sub *Subscription) saveDB() (interface{}, error) {
 	return sub, nil
 }
 
-func (sq *SearchQuery) saveDB() (interface{}, error) {
+func (sq *SearchQuery) execute() (interface{}, error) {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	userHandler := dbManager.initializeDBhandler("user")
 	result := make(map[string]interface{})
@@ -351,17 +287,6 @@ func (sq *SearchQuery) saveDB() (interface{}, error) {
 	if err != nil {
 		log.Println(err)
 		return nil, err
-	}
-
-	for key := range resUsers {
-
-		ok := connSockets.isUserOnline(key)
-
-		if ok {
-			sq.Status[key] = "online"
-		} else {
-			sq.Status[key] = "offline"
-		}
 	}
 
 	resChats, err := chatHandler.SearchChat(sq.Input, sq.UserID)
@@ -378,7 +303,7 @@ func (sq *SearchQuery) saveDB() (interface{}, error) {
 	return sq, nil
 }
 
-func (newPrCh *NewPrivateChat) saveDB() (interface{}, error) {
+func (newPrCh *NewPrivateChat) execute() (interface{}, error) {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	messageHandler := dbManager.initializeDBhandler("message")
 
@@ -407,79 +332,6 @@ func (newPrCh *NewPrivateChat) saveDB() (interface{}, error) {
 	newPrCh.MessageID = messageID
 
 	return newPrCh, nil
-}
-
-func dispatchAction(messageType string, data interface{}, wsMessageT int, cl *Client) {
-	if errorMessage, ok := data.(Error); ok {
-		errorMessage.handleError(data, cl, wsMessageT)
-		return
-	}
-	action, ok := data.(ActionOnType)
-	if ok {
-		log.Println("performing action")
-		action.perform(messageType, wsMessageT, cl)
-		return
-	} else {
-		log.Println("No action to dispatch")
-	}
-
-	cacheAction, ok := data.(Cacheable)
-	if ok {
-		log.Println("sending cache")
-		cacheAction.sendCache(cl, messageType, wsMessageT)
-	} else {
-		log.Println("No cacheable action")
-	}
-
-}
-
-func processMessage(p []byte, cl *Client) (interface{}, string) {
-	fmt.Println("raw json:", string(p))
-	env := JSONenvelope{}
-	err := json.Unmarshal(p, &env)
-
-	if err != nil {
-		ok := isTypeUnknown(err.Error())
-		if ok {
-			msg := Error{
-				Message: err.Error(),
-			}
-			return msg, "UNKNOWN_TYPE"
-		} else {
-			log.Fatal(err)
-		}
-	}
-
-	msg, err := kindHandler(env.Type)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	err = json.Unmarshal(p, msg)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if assertedMsg, ok := msg.(ActionOnType); ok {
-		assertedMsg.assignID(cl)
-	}
-
-	return msg, env.Type.toValue()
-}
-
-func (dbm *sqlDBwrap) handleDatabase(data interface{}) (interface{}, error) {
-	if action, ok := data.(ActionOnType); ok {
-		res, err := action.saveDB()
-		return res, err
-	} else {
-		log.Println("No write to database")
-		return data, nil
-	}
-}
-
-func (e *Error) handleError(errorMessage interface{}, cl *Client, msgT int) {
-	writeToSocket(errorMessage, "Error", cl, msgT)
 }
 
 func isTypeUnknown(err string) bool {

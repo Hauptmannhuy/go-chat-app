@@ -86,3 +86,14 @@ func (dbm *sqlDBwrap) initializeDBhandler(handlerDeclaration string) handler.Han
 	}
 	return handler
 }
+
+func getDB() *sqlDBwrap {
+	if dbManager.db == nil {
+		err := dbManager.openAndMigrateDB()
+		if err != nil {
+			fmt.Println("1")
+			log.Println(err)
+		}
+	}
+	return &dbManager
+}

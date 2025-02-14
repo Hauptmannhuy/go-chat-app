@@ -20,7 +20,7 @@ func (h *Handler) LoginUserHandler(username, pass string) (string, error) {
 	return h.UserService.LoginUser(username, pass)
 }
 
-func (h *Handler) SearchUser(input, userID string) (map[string]store.UserContainerData, error) {
+func (h *Handler) SearchUser(input string, userID int) (map[string]store.UserContainerData, error) {
 
 	if input == "" {
 		return nil, &argError{"Input should not be empty"}

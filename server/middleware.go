@@ -12,13 +12,7 @@ type AuthorizationMiddleware struct {
 
 type tokenVerifier func(c *http.Cookie) bool
 
-func NewAuthMiddlewareHandler() AuthorizationMiddleware {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/sign_in", signInHandler)
-	mux.HandleFunc("/sign_up", signUpHandler)
-	mux.HandleFunc("/sign_out", SignOutHandler)
-	mux.HandleFunc("/chat", chatHandler)
-
+func NewAuthMiddlewareHandler(mux *http.ServeMux) AuthorizationMiddleware {
 	return AuthorizationMiddleware{
 		verifier: verifyToken,
 		handler:  mux,
@@ -29,7 +23,6 @@ func (am AuthorizationMiddleware) ServeHTTP(w http.ResponseWriter, req *http.Req
 	cookie, err := req.Cookie("token")
 	tokenValid := err == nil && am.verifier(cookie)
 	path := req.URL.Path
-	fmt.Println(tokenValid, path)
 	switch {
 	case tokenValid && path == "/checkauth":
 		w.WriteHeader(http.StatusOK)

@@ -6,13 +6,13 @@ import (
 )
 
 type SubscriptionStore interface {
-	LoadSubscriptions(username string) ([]string, error)
-	SaveSubscription(userID, chatID string) error
-	GetPrivateChatSubs(chatName, sender string) []string
-	GetGroupChatSubs(chatName, sender string) []string
+	LoadSubscriptions(userID int) ([]string, error)
+	SaveSubscription(userID, chatID int) error
+	GetPrivateChatSubs(chatName string) []int
+	GetGroupChatSubs(chatName string) []int
 }
 
-func (s *SQLstore) LoadSubscriptions(userID string) ([]string, error) {
+func (s *SQLstore) LoadSubscriptions(userID int) ([]string, error) {
 
 	var res []string
 
@@ -53,7 +53,7 @@ func (s *SQLstore) LoadSubscriptions(userID string) ([]string, error) {
 
 }
 
-func (s *SQLstore) SaveSubscription(userID, chatID string) error {
+func (s *SQLstore) SaveSubscription(userID, chatID int) error {
 	tr, _ := s.DB.Begin()
 	_, err := tr.Exec(`
 		INSERT INTO group_chat_subs (user_id, chat_id) VALUES ($1, $2)
@@ -69,39 +69,35 @@ func (s *SQLstore) SaveSubscription(userID, chatID string) error {
 	return nil
 }
 
-func (s *SQLstore) GetPrivateChatSubs(chatName, sender string) []string {
-	var receiver string
+func (s *SQLstore) GetPrivateChatSubs(chatName string) []int {
 	query := `
-		SELECT u.username
-		FROM private_chats AS pc
-		JOIN users AS u
-		ON pc.user1_id = u.id OR pc.user2_id = u.id
-		WHERE pc.chat_name = $1 AND u.username != $2
+	SELECT user1_id, user2_id
+	FROM private_chats
+	WHERE chat_name = $1
 	`
-	row := s.DB.QueryRow(query, chatName, sender)
-	err := row.Scan(&receiver)
+	usersID := make([]int, 2)
+	row := s.DB.QueryRow(query, chatName)
+	err := row.Scan(&usersID[0], &usersID[1])
 
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("err1", err)
 	}
-	return []string{receiver}
+	return usersID
 }
 
-func (s *SQLstore) GetGroupChatSubs(chatName, sender string) []string {
-	var receivers []string
+func (s *SQLstore) GetGroupChatSubs(chatName string) []int {
+	var receivers []int
 	query := `
-	SELECT u.username FROM users AS u
+	SELECT gcs.user_id FROM group_chats AS gc
 	JOIN group_chat_subs AS gcs
-	ON gcs.user_id = u.id
-	JOIN group_chats AS gc
-	ON gc.id = gcs.chat_id
-	WHERE gc.chat_name = $1 AND u.username != $2`
-	rows, err := s.DB.Query(query, chatName, sender)
+	ON gc.id = gcs.id
+	WHERE gc.chat_name = $1`
+	rows, err := s.DB.Query(query, chatName)
 	if err != nil {
 		log.Fatal("Error during search for subs", err)
 	}
 	for rows.Next() {
-		var receiver string
+		var receiver int
 		err := rows.Scan(&receiver)
 		if err != nil {
 			log.Fatal("Error during scan", err)

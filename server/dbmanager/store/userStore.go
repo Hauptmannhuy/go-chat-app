@@ -8,10 +8,10 @@ import (
 type UserStore interface {
 	SaveAccount(name, email, pass string) (string, error)
 	AuthenticateAccount(name, pass string) (string, error)
-	SearchUser(username, userID string) (map[string]UserContainerData, error)
+	SearchUser(username string, userID int) (map[string]UserContainerData, error)
 }
 
-func (s *SQLstore) SearchUser(input, userID string) (map[string]UserContainerData, error) {
+func (s *SQLstore) SearchUser(input string, userID int) (map[string]UserContainerData, error) {
 	userName := s.retrieveUsername(userID)
 	userMap := make(map[string]UserContainerData)
 	query := `

@@ -5,45 +5,45 @@ import (
 	"go-chat-app/dbmanager/store"
 )
 
-func (h *Handler) CreateChatHandler(name, creatorID string) (string, error) {
+func (h *Handler) CreateChatHandler(name string, creatorID int) (int, error) {
 
-	if creatorID == "" {
-		return "", &argError{"chatID field cannot be blank"}
+	if creatorID == 0 {
+		return 0, &argError{"creatorID field cannot be blank"}
 	}
 
-	str, err := h.ChatService.CreateChat(name, creatorID)
+	n, err := h.ChatService.CreateChat(name, creatorID)
 
 	if err != nil {
 		fmt.Println(err, "Failed to create message")
-		return "", err
+		return 0, err
 	}
-	return str, err
+	return n, err
 }
 
 func (h *Handler) GetAllChats() (store.Chats, error) {
 	return h.ChatService.GetAllChats()
 }
 
-func (h *Handler) CreatePrivateChatHandler(initiatorID, receiverID string) (interface{}, error) {
+func (h *Handler) CreatePrivateChatHandler(initiatorID, receiverID int) (interface{}, error) {
 
 	return h.ChatService.CreatePrivateChat(initiatorID, receiverID)
 }
 
-func (h *Handler) LoadUserSubscribedChats(id string) ([]interface{}, error) {
+func (h *Handler) LoadUserSubscribedChats(id int) ([]interface{}, error) {
 	return h.ChatService.LoadSubscribedChats(id)
 }
 
-func (h *Handler) LoadSubscribedPrivateChats(id string) (interface{}, error) {
+func (h *Handler) LoadSubscribedPrivateChats(id int) (interface{}, error) {
 	return h.ChatService.LoadSubscribedPrivateChats(id)
 }
 
-func (h *Handler) SearchChat(input, userID string) (interface{}, error) {
+func (h *Handler) SearchChat(input string, userID int) (interface{}, error) {
 	if input == "" {
 		return nil, &argError{"Input should not be empty"}
 	}
 	return h.ChatService.SearchChat(input, userID)
 }
 
-func (h *Handler) RetrieveGroupChatCreatorID(chatID string) string {
+func (h *Handler) RetrieveGroupChatCreatorID(chatID int) int {
 	return h.ChatService.RetrieveGroupChatCreatorID(chatID)
 }

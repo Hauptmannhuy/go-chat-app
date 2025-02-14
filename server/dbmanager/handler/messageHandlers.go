@@ -2,15 +2,15 @@ package handler
 
 import "fmt"
 
-func (h *Handler) CreateMessageHandler(body, chatID, userID string) (int, error) {
+func (h *Handler) CreateMessageHandler(body, chatName string, userID int) (int, error) {
 
-	if body == "" || chatID == "" {
+	if body == "" || chatName == "" {
 		var err = &argError{"Message body or chatID"}
 
 		return -1, err
 	}
 
-	messageID, err := h.MessageService.CreateMessage(body, chatID, userID)
+	messageID, err := h.MessageService.CreateMessage(body, chatName, userID)
 	if err != nil {
 		fmt.Println(err, "Failed to create message")
 		return -1, err

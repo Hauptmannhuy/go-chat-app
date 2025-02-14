@@ -7,13 +7,13 @@ import (
 )
 
 type ChatStore interface {
-	LoadSubscribedChats(username string) ([]interface{}, error)
-	SaveChat(name, creatorID string) (string, error)
-	SavePrivateChat(u1id, u2id string) (interface{}, error)
+	LoadSubscribedChats(userID int) ([]interface{}, error)
+	SaveChat(name string, creatorID int) (int, error)
+	SavePrivateChat(u1id, u2id int) (interface{}, error)
 	GetChats() (Chats, error)
-	SearchChat(input, userID string) (interface{}, error)
-	LoadSubscribedPrivateChats(id string) (interface{}, error)
-	RetrieveGroupChatCreatorID(chatID string) string
+	SearchChat(input string, userID int) (interface{}, error)
+	LoadSubscribedPrivateChats(id int) (interface{}, error)
+	RetrieveGroupChatCreatorID(chatID int) int
 }
 
 func (s *SQLstore) GetChats() (Chats, error) {
@@ -105,7 +105,7 @@ func (s *SQLstore) GetChats() (Chats, error) {
 	return result, nil
 }
 
-func (s *SQLstore) SaveChat(name, creatorID string) (string, error) {
+func (s *SQLstore) SaveChat(name string, creatorID int) (int, error) {
 
 	tr, _ := s.DB.Begin()
 
@@ -118,7 +118,7 @@ func (s *SQLstore) SaveChat(name, creatorID string) (string, error) {
 		fmt.Println("error saving group chat", err)
 		err = errordb.ParseError(err.Error())
 		tr.Rollback()
-		return "", err
+		return 0, err
 	}
 	tr.Commit()
 	id := s.retrieveGroupChatIndex(name)
@@ -126,7 +126,7 @@ func (s *SQLstore) SaveChat(name, creatorID string) (string, error) {
 	return id, err
 }
 
-func (s *SQLstore) SearchChat(input, userID string) (interface{}, error) {
+func (s *SQLstore) SearchChat(input string, userID int) (interface{}, error) {
 
 	results := make(map[string]interface{})
 	query := fmt.Sprintf(`
@@ -137,7 +137,7 @@ func (s *SQLstore) SearchChat(input, userID string) (interface{}, error) {
 		END AS is_subscribed
 		FROM group_chats AS gc
 		LEFT JOIN group_chat_subs AS gcs
-		ON gcs.user_id = %s AND gc.id = gcs.chat_id
+		ON gcs.user_id = %d AND gc.id = gcs.chat_id
 		WHERE gc.chat_name ILIKE '%s'
 		LIMIT 25
 
@@ -160,7 +160,7 @@ func (s *SQLstore) SearchChat(input, userID string) (interface{}, error) {
 	return results, err
 }
 
-func (s *SQLstore) SavePrivateChat(user1id, user2id string) (interface{}, error) {
+func (s *SQLstore) SavePrivateChat(user1id, user2id int) (interface{}, error) {
 	user1name := s.retrieveUsername(user1id)
 	user2name := s.retrieveUsername(user2id)
 	chatName := user1name + "_" + user2name
@@ -193,12 +193,12 @@ func (s *SQLstore) SavePrivateChat(user1id, user2id string) (interface{}, error)
 	return data, nil
 }
 
-func (s *SQLstore) LoadSubscribedChats(userID string) ([]interface{}, error) {
+func (s *SQLstore) LoadSubscribedChats(userID int) ([]interface{}, error) {
 
 	var res SearchResults
 	tr, _ := s.DB.Begin()
 	rows, err := tr.Query(`
-	SELECT c.id, c.chat_name FROM group_chats AS c
+	SELECT c.id, c.chat_name, c.creator_id FROM group_chats AS c
 	JOIN group_chat_subs AS s
 	ON s.chat_id = c.id
 	WHERE s.user_id = $1
@@ -209,12 +209,13 @@ func (s *SQLstore) LoadSubscribedChats(userID string) ([]interface{}, error) {
 	}
 	for rows.Next() {
 		var data struct {
-			ChatID   string `json:"chat_id"`
-			ChatName string `json:"chat_name"`
+			ChatID    int    `json:"chat_id"`
+			ChatName  string `json:"chat_name"`
+			CreatorID int    `json:"creator_id"`
 		}
-		err := rows.Scan(&data.ChatID, &data.ChatName)
+		err := rows.Scan(&data.ChatID, &data.ChatName, &data.CreatorID)
 		if err != nil {
-			log.Fatal("Error scanning subscribed group chats", err)
+			log.Fatal("Error scanning subscribed group chats ", err)
 		}
 		res = append(res, data)
 	}
@@ -222,10 +223,10 @@ func (s *SQLstore) LoadSubscribedChats(userID string) ([]interface{}, error) {
 
 }
 
-func (s *SQLstore) LoadSubscribedPrivateChats(userID string) (interface{}, error) {
-	privateChatsMap := make(map[string]interface{})
+func (s *SQLstore) LoadSubscribedPrivateChats(userID int) (interface{}, error) {
+	privateChatsMap := make(map[int]interface{})
 	query := fmt.Sprintf(`
-		SELECT id, user1_id, user2_id, chat_name FROM private_chats WHERE user1_id = '%s' OR user2_id = '%s'
+		SELECT id, user1_id, user2_id, chat_name FROM private_chats WHERE user1_id = %d OR user2_id = %d
 	`, userID, userID)
 	rows, err := s.DB.Query(query)
 
@@ -236,10 +237,10 @@ func (s *SQLstore) LoadSubscribedPrivateChats(userID string) (interface{}, error
 	defer rows.Close()
 	for rows.Next() {
 		var resultRow struct {
-			ChatID   string `json:"chat_id"`
+			ChatID   int    `json:"chat_id"`
 			ChatName string `json:"chat_name"`
-			User1ID  string `json:"user1_id"`
-			User2ID  string `json:"user2_id"`
+			User1ID  int    `json:"user1_id"`
+			User2ID  int    `json:"user2_id"`
 		}
 		err := rows.Scan(&resultRow.ChatID, &resultRow.User1ID, &resultRow.User2ID, &resultRow.ChatName)
 		if err != nil {
@@ -251,14 +252,14 @@ func (s *SQLstore) LoadSubscribedPrivateChats(userID string) (interface{}, error
 	return privateChatsMap, nil
 }
 
-func (s *SQLstore) RetrieveGroupChatCreatorID(chatID string) string {
-	var creatorID string
+func (s *SQLstore) RetrieveGroupChatCreatorID(chatID int) int {
+	var creatorID int
 	err := s.DB.QueryRow(`
 		SELECT creator_id FROM group_chats WHERE id = $1
 	`, chatID).Scan(&creatorID)
 	if err != nil {
 		fmt.Println("Error retrieving group creator ID", err)
-		return ""
+		return 0
 	}
 	return creatorID
 }

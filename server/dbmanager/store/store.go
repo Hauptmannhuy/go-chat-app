@@ -104,7 +104,7 @@ func authenticatePass(hashedPass, pass []byte) (bool, error) {
 	return true, nil
 }
 
-func (s *SQLstore) retrieveUsername(id string) string {
+func (s *SQLstore) retrieveUsername(id int) string {
 	var username string
 	query := `
 		SELECT username FROM users
@@ -118,8 +118,8 @@ func (s *SQLstore) retrieveUsername(id string) string {
 	return username
 }
 
-func (s *SQLstore) retrieveGroupChatIndex(name string) string {
-	var id string
+func (s *SQLstore) retrieveGroupChatIndex(name string) int {
+	var id int
 	query := `
 		SELECT id FROM group_chats
 		WHERE chat_name = $1

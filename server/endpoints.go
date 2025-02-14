@@ -28,7 +28,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 
 	json.Unmarshal(data, &message)
 
-	userHandler := dbManager.initializeDBhandler("user")
+	userHandler := getDB().initializeDBhandler("user")
 
 	id, err := userHandler.CreateUserHandler(message.Username, message.Email, message.Password)
 	fmt.Println(id)
@@ -52,7 +52,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 
 func signInHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("sign in")
-	userHandler := dbManager.initializeDBhandler("user")
+	userHandler := getDB().initializeDBhandler("user")
 	var message struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -100,21 +100,4 @@ func SignOutHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.WriteHeader(http.StatusOK)
-}
-
-func chatHandler(w http.ResponseWriter, r *http.Request) {
-
-	newClient := initializeWSconn(w, r)
-	chatList.addClientToSubRooms(newClient)
-	connSockets.AddHubMember(newClient)
-	newClient.socket.SetCloseHandler(func(code int, text string) error {
-		newClient.CloseConnection()
-		return nil
-	})
-	handleOfflineMessages(newClient)
-	broadcastUserStatus("online", newClient)
-	loadPeersStatus(newClient)
-	fmt.Println(connSockets)
-
-	go clientMessages(newClient)
 }
