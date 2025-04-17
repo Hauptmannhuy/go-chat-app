@@ -86,11 +86,11 @@ func (s *SQLstore) GetPrivateChatSubs(chatName string) []int {
 }
 
 func (s *SQLstore) GetGroupChatSubs(chatName string) []int {
-	var receivers []int
+	var subscribers []int
 	query := `
-	SELECT gcs.user_id FROM group_chats AS gc
-	JOIN group_chat_subs AS gcs
-	ON gc.id = gcs.id
+	SELECT gcs.user_id FROM group_chat_subs AS gcs
+	JOIN group_chats AS gc
+	ON gc.id = gcs.chat_id
 	WHERE gc.chat_name = $1`
 	rows, err := s.DB.Query(query, chatName)
 	if err != nil {
@@ -102,7 +102,7 @@ func (s *SQLstore) GetGroupChatSubs(chatName string) []int {
 		if err != nil {
 			log.Fatal("Error during scan", err)
 		}
-		receivers = append(receivers, receiver)
+		subscribers = append(subscribers, receiver)
 	}
-	return receivers
+	return subscribers
 }

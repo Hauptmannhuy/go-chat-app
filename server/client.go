@@ -33,10 +33,6 @@ func initClient(w http.ResponseWriter, r *http.Request, h *hub) *Client {
 	token, _ := r.Cookie("token")
 	username, _ := r.Cookie("username")
 	userIndex := fetchUserID(token.Value)
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
 
 	client := &Client{
 		socket: conn,
@@ -77,6 +73,7 @@ func (client *Client) run() {
 		select {
 		case message := <-client.messageBuffer:
 			err := client.socket.WriteJSON(message)
+			fmt.Println("write to socket")
 			if err != nil {
 				fmt.Println("Error writing to socket", err)
 			}
@@ -88,7 +85,6 @@ func (client *Client) run() {
 }
 
 func (client *Client) processMessage(p []byte) (*wsMessage, error) {
-	fmt.Println("raw json:", string(p))
 	env := JSONenvelope{}
 	err := json.Unmarshal(p, &env)
 
@@ -111,15 +107,15 @@ func (client *Client) processMessage(p []byte) (*wsMessage, error) {
 	}
 
 	err = json.Unmarshal(p, msg)
+	fmt.Println(string(p))
 
 	if err != nil {
 		log.Fatal(err)
 	}
 	broadcastHandler := defineAlgo(msg)
-	if assertedMsg, ok := msg.(MessageHandler); ok {
-		assertedMsg.assignID(client)
-		assertedMsg.execute()
-	}
+
+	msg.Process(client)
+
 	return &wsMessage{
 		payload:          msg,
 		owner:            client,
@@ -130,6 +126,7 @@ func (client *Client) processMessage(p []byte) (*wsMessage, error) {
 func (cl *Client) handleOfflineMessages(clientSubs []string) {
 	redisManager := getRedis()
 	data := map[string][]interface{}{}
+	fmt.Println(data)
 	for _, sub := range clientSubs {
 		key := fmt.Sprintf("offline:messages:%s:%d", sub, cl.id)
 		if ok := redisManager.hasMessages(key); ok {

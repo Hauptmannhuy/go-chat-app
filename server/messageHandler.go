@@ -10,9 +10,7 @@ import (
 //go:generate jsonenums -type=Kind
 
 type MessageHandler interface {
-	// execute(messageType string, wsMsgType int, cl *Client)
-	execute() (interface{}, error)
-	assignID(cl *Client)
+	Process(cl *Client)
 }
 
 type wsMessage struct {
@@ -31,12 +29,13 @@ type JSONenvelope struct {
 }
 
 type UserMessage struct {
-	Body      string `json:"body"`
-	ChatName  string `json:"chat_name"`
 	UserID    int    `json:"user_id"`
 	Username  string `json:"username"`
-	State     string `json:"state"`
+	ChatName  string `json:"chat_name"`
 	MessageID int    `json:"message_id"`
+	Body      string `json:"body"`
+	Image     Image  `json:"image"`
+	State     string `json:"state"`
 }
 
 type Subscription struct {
@@ -99,8 +98,8 @@ const (
 	NEW_GROUP_CHAT
 )
 
-func kindHandler(kind Kind) (interface{}, error) {
-	var kindTypes = map[Kind]interface{}{
+func kindHandler(kind Kind) (MessageHandler, error) {
+	var kindTypes = map[Kind]MessageHandler{
 		NEW_MESSAGE:      &UserMessage{},
 		NEW_CHAT:         &NewGroupChat{},
 		SEARCH_QUERY:     &SearchQuery{},
@@ -146,10 +145,10 @@ func defineAlgo(data interface{}) broadcastHandler {
 		fmt.Println("return  sq algo")
 		return &searchQueryAlgo{}
 	case *Subscription:
-		fmt.Println("return  sub algo")
+		fmt.Println("return sub algo")
 		return &newSubAlgo{}
 	case *WebSocketChatStore:
-		fmt.Println("return  chatstore algo")
+		fmt.Println("return chatstore algo")
 		return &chatStoreAlgo{}
 	case *WebSocketMessageStore:
 		fmt.Println("return  messagestore algo")
@@ -160,154 +159,159 @@ func defineAlgo(data interface{}) broadcastHandler {
 	}
 }
 
-func (um *UserMessage) assignID(cl *Client) {
-	um.UserID = cl.id
-	um.Username = cl.username
-	fmt.Println("client username", cl.username)
+func (msg *UserMessage) Process(cl *Client) {
+	msg.UserID = cl.id
+	msg.Username = cl.username
+	msg.requestDB()
 }
 
-func (npc *NewPrivateChat) assignID(cl *Client) {
-	npc.InitiatorID = cl.id
-	npc.Username = cl.username
+func (msg *NewPrivateChat) Process(cl *Client) {
+	msg.InitiatorID = cl.id
+	msg.Username = cl.username
+	msg.requestDB()
 }
 
-func (ngc *NewGroupChat) assignID(cl *Client) {
-	ngc.CreatorID = cl.id
+func (msg *NewGroupChat) Process(cl *Client) {
+	msg.CreatorID = cl.id
+	msg.requestDB()
 }
 
-func (sq *SearchQuery) assignID(cl *Client) {
-	sq.UserID = cl.id
-
+func (msg *SearchQuery) Process(cl *Client) {
+	msg.UserID = cl.id
+	msg.requestDB()
 }
 
-func (sub *Subscription) assignID(cl *Client) {
-	sub.UserID = cl.id
-	sub.Username = cl.username
+func (msg *Subscription) Process(cl *Client) {
+	msg.UserID = cl.id
+	msg.Username = cl.username
+	msg.requestDB()
 }
-func (wsChatStore *WebSocketChatStore) assignID(cl *Client) {
-	wsChatStore.UserID = cl.id
-}
-
-func (wsMessageStore *WebSocketMessageStore) assignID(cl *Client) {
-	wsMessageStore.UserID = cl.id
+func (msg *WebSocketChatStore) Process(cl *Client) {
+	msg.UserID = cl.id
+	msg.requestDB()
 }
 
-func (wsChatStore *WebSocketChatStore) execute() (interface{}, error) {
+func (msg *WebSocketMessageStore) Process(cl *Client) {
+	msg.UserID = cl.id
+	msg.requestDB()
+}
+
+func (msg *WebSocketChatStore) requestDB() error {
 	dbChatHandler := dbManager.initializeDBhandler("chat")
-	groupChatData, err := dbChatHandler.LoadUserSubscribedChats(wsChatStore.UserID)
+	groupChatData, err := dbChatHandler.LoadUserSubscribedChats(msg.UserID)
 
 	if err != nil {
 		log.Println(err)
-		return nil, err
+		return err
 	}
 
-	privateChatData, err := dbChatHandler.LoadSubscribedPrivateChats(wsChatStore.UserID)
+	privateChatData, err := dbChatHandler.LoadSubscribedPrivateChats(msg.UserID)
 
 	if err != nil {
 		log.Println(err)
-		return nil, err
+		return err
 	}
 
 	chatContainer := make(map[string]interface{})
 	chatContainer["private"] = privateChatData
 	chatContainer["group"] = groupChatData
-	wsChatStore.Data = chatContainer
+	msg.Data = chatContainer
 
-	return chatContainer, nil
+	return nil
 }
 
-func (wsMessageStore *WebSocketMessageStore) execute() (interface{}, error) {
+func (msg *WebSocketMessageStore) requestDB() error {
 	db := getDB()
 	dbMessageHandler := db.initializeDBhandler("message")
 	dbSubsHandler := db.initializeDBhandler("subscription")
-	subs, err := dbSubsHandler.LoadSubscriptions(wsMessageStore.UserID)
+	subs, err := dbSubsHandler.LoadSubscriptions(msg.UserID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	data, err := dbMessageHandler.GetChatsMessages(subs)
-	wsMessageStore.Data = data
-	return data, err
+	msg.Data = data
+	return nil
 }
 
 type Error struct {
 	Message string
 }
 
-func (m *UserMessage) execute() (interface{}, error) {
+func (msg *UserMessage) requestDB() error {
 
 	messageHandler := getDB().initializeDBhandler("message")
-	messageID, err := messageHandler.CreateMessageHandler(m.Body, m.ChatName, m.UserID)
-	m.MessageID = messageID
-	fmt.Println(m)
-	return m, err
+	messageID, err := messageHandler.CreateMessageHandler(msg.Body, msg.ChatName, msg.UserID)
+	msg.MessageID = messageID
+	fmt.Println(msg)
+	return err
 }
 
-func (nc *NewGroupChat) execute() (interface{}, error) {
+func (msg *NewGroupChat) requestDB() error {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	subHandler := dbManager.initializeDBhandler("subscription")
-	id, err := chatHandler.CreateChatHandler(nc.Name, nc.CreatorID)
-	nc.ID = id
+	id, err := chatHandler.CreateChatHandler(msg.Name, msg.CreatorID)
+	msg.ID = id
 	if err != nil {
 		log.Println(err)
-		return nil, err
+		return err
 	}
-	err = subHandler.SaveSubHandler(nc.CreatorID, id)
+	err = subHandler.SaveSubHandler(msg.CreatorID, id)
 	if err != nil {
 		log.Println(err)
-		return nil, err
+		return err
 	}
-	return nc, err
+	return err
 }
 
-func (sub *Subscription) execute() (interface{}, error) {
+func (msg *Subscription) requestDB() error {
 	subHandler := dbManager.initializeDBhandler("subscription")
 	chatHandler := dbManager.initializeDBhandler("chat")
 	messgHandler := dbManager.initializeDBhandler("message")
-	msgID, err := messgHandler.CreateMessageHandler(sub.BodyMessage, sub.ChatName, sub.UserID)
+	msgID, err := messgHandler.CreateMessageHandler(msg.BodyMessage, msg.ChatName, msg.UserID)
 
 	if err != nil {
 		log.Println(err)
-		return nil, err
+		return err
 	}
 
-	sub.msgID = msgID
-	sub.CreatorID = chatHandler.RetrieveGroupChatCreatorID(sub.ChatID)
-	subHandler.SaveSubHandler(sub.UserID, sub.ChatID)
+	msg.msgID = msgID
+	msg.CreatorID = chatHandler.RetrieveGroupChatCreatorID(msg.ChatID)
+	subHandler.SaveSubHandler(msg.UserID, msg.ChatID)
 
-	return sub, nil
+	return nil
 }
 
-func (sq *SearchQuery) execute() (interface{}, error) {
+func (msg *SearchQuery) requestDB() error {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	userHandler := dbManager.initializeDBhandler("user")
 	result := make(map[string]interface{})
-	sq.Status = make(map[string]string)
-	resUsers, err := userHandler.SearchUser(sq.Input, sq.UserID)
+	msg.Status = make(map[string]string)
+	resUsers, err := userHandler.SearchUser(msg.Input, msg.UserID)
 
 	if err != nil {
 		log.Println(err)
-		return nil, err
+		return err
 	}
 
-	resChats, err := chatHandler.SearchChat(sq.Input, sq.UserID)
+	resChats, err := chatHandler.SearchChat(msg.Input, msg.UserID)
 
 	if err != nil {
 		log.Println(err)
-		return nil, err
+		return err
 	}
 
 	result["users"] = resUsers
 	result["chats"] = resChats
-	sq.SearchResults = result
+	msg.SearchResults = result
 
-	return sq, nil
+	return nil
 }
 
-func (newPrCh *NewPrivateChat) execute() (interface{}, error) {
+func (msg *NewPrivateChat) requestDB() error {
 	chatHandler := dbManager.initializeDBhandler("chat")
 	messageHandler := dbManager.initializeDBhandler("message")
 
-	chatInfo, err := chatHandler.CreatePrivateChatHandler(newPrCh.InitiatorID, newPrCh.ReceiverID)
+	chatInfo, err := chatHandler.CreatePrivateChatHandler(msg.InitiatorID, msg.ReceiverID)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -318,8 +322,8 @@ func (newPrCh *NewPrivateChat) execute() (interface{}, error) {
 	chatName := data.ChatName
 
 	messageData := UserMessage{
-		Body:     newPrCh.Message,
-		UserID:   newPrCh.InitiatorID,
+		Body:     msg.Message,
+		UserID:   msg.InitiatorID,
 		ChatName: chatName,
 	}
 
@@ -327,11 +331,11 @@ func (newPrCh *NewPrivateChat) execute() (interface{}, error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	newPrCh.ChatName = chatName
-	newPrCh.ChatID = chatID
-	newPrCh.MessageID = messageID
+	msg.ChatName = chatName
+	msg.ChatID = chatID
+	msg.MessageID = messageID
 
-	return newPrCh, nil
+	return nil
 }
 
 func isTypeUnknown(err string) bool {

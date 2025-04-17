@@ -55,28 +55,37 @@ func (h *hub) run() {
 	for {
 		select {
 		case peerReq := <-h.peerConnect:
-
-			handler := getDB().initializeDBhandler("subscription")
-			subs, _ := handler.LoadSubscriptions(peerReq.id)
-			peer := peerReq
-
-			h.connectPeer(peer, subs)
-			h.connections[peer.id] = peer
-			peer.handleOfflineMessages(subs)
+			{
+				handler := getDB().initializeDBhandler("subscription")
+				subs, _ := handler.LoadSubscriptions(peerReq.id)
+				peerReq.handleOfflineMessages(subs)
+				h.broadcastUserStatus(peerReq, "online")
+				h.connectPeer(peerReq, subs)
+			}
 		case id := <-h.peerDisconnect:
-			delete(h.connections, id)
-			for _, room := range h.roomRegister.rooms {
-				room.leavePeerReq <- id
+			{
+				delete(h.connections, id)
+				for _, room := range h.roomRegister.rooms {
+					room.leavePeerReq <- id
+				}
+				fmt.Println("Connected peers", h.connections)
 			}
 		case closeRoomReq := <-h.roomRegister.closeRoomChan:
-			close(h.roomRegister.rooms[closeRoomReq].done)
-			h.roomRegister.shutdownRoom(closeRoomReq)
+			{
+				close(h.roomRegister.rooms[closeRoomReq].done)
+				h.roomRegister.shutdownRoom(closeRoomReq)
+			}
 		case wsMsg := <-h.wsMessageChan:
-			wsMsg.broadcastHandler.exec(wsMsg.owner, wsMsg.payload)
+			{
+				wsMsg.broadcastHandler.exec(wsMsg.owner, wsMsg.payload)
+			}
 		}
 	}
 }
+
 func (h *hub) connectPeer(client *Client, subs []string) {
+	h.connections[client.id] = client
+
 	for _, sub := range subs {
 		if _, ok := h.roomRegister.rooms[sub]; ok {
 			h.roomRegister.addClient(sub, client)
@@ -113,32 +122,20 @@ func (hub *hub) broadcastUserStatus(client *Client, status string) {
 			Status: map[string]string{client.username: status},
 		},
 	}
+	sended := map[int]int{}
 	handler := getDB().initializeDBhandler("subscription")
 	subscriptions, _ := handler.LoadSubscriptions(client.id)
 
 	for _, sub := range subscriptions {
 		if room, ok := hub.roomRegister.rooms[sub]; ok {
-			room.read <- outEnv
+			for _, peer := range room.connections {
+
+				if _, sent := sended[peer.id]; sent {
+					continue
+				}
+				peer.socket.WriteJSON(outEnv)
+				sended[peer.id] = peer.id
+			}
 		}
 	}
 }
-
-func (hub *hub) loadPeersStatus(peerToNotify *Client) {
-	// statusInfo := UserStatus{
-	// 	Status: make(map[string]string),
-	// }
-
-	// for _, sub := range peerToNotify.subs {
-	// 	onlineUsers := chatList.Chats[sub].checkOnline()
-	// 	for name, isOnline := range onlineUsers {
-	// 		if isOnline {
-	// 			statusInfo.Status[name] = "online"
-	// 		} else {
-	// 			statusInfo.Status[name] = "offline"
-	// 		}
-	// 	}
-	// }
-	// writeToSocket(statusInfo, "USER_STATUS", peerToNotify, websocket.TextMessage)
-}
-
-// func (h *hub) isUserOnline(peerName string) bool

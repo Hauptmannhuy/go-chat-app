@@ -30,32 +30,59 @@ func (room *Room) run() {
 	for {
 		select {
 		case peerID := <-room.leavePeerReq:
-			if _, ok := room.connections[peerID]; ok {
-				delete(room.connections, peerID)
-				if len(room.connections) == 0 {
-					fmt.Println(room.name)
-					room.roomReg.closeRoomChan <- room.name
+			{
+				if _, ok := room.connections[peerID]; ok {
+					delete(room.connections, peerID)
+					if len(room.connections) == 0 {
+						fmt.Println(room.name)
+						room.roomReg.closeRoomChan <- room.name
+					}
 				}
 			}
 		case message := <-room.read:
-			for _, id := range room.subscribers {
-				peer, ok := room.connections[id]
-				if ok {
-					peer.messageBuffer <- message
-				} else {
-					if asserted, ok := message.Data.(redisBuffer); ok {
-						fmt.Println("saving to redis")
-						asserted.saveToBuff(id)
+			{
+				fmt.Println("============")
+				fmt.Println("Room received message", message.Data)
+				fmt.Println("connected to room peers", room.connections)
+				fmt.Println("room subscribers", room.subscribers)
+				fmt.Println("============")
+				for _, id := range room.subscribers {
+					peer, ok := room.connections[id]
+					if ok {
+						peer.messageBuffer <- message
+					} else {
+						if asserted, ok := message.Data.(redisBuffer); ok {
+							fmt.Println("saving to redis")
+							asserted.saveToBuff(id)
+						}
 					}
 				}
 			}
 		case newPeer := <-room.newPeerReq:
-			room.connections[newPeer.id] = newPeer
+			{
+				room.loadConnStatuses(newPeer)
+				room.connections[newPeer.id] = newPeer
+			}
 		case <-room.done:
 			return
 		}
 
 	}
+}
+
+func (r *Room) loadConnStatuses(resPeer *Client) {
+	statuses := UserStatus{
+		Status: map[string]string{},
+	}
+	for _, senPeer := range r.connections {
+		statuses.Status[senPeer.username] = "online"
+	}
+	resPeer.socket.WriteJSON(
+		OutEnvelope{
+			Type: "USER_STATUS",
+			Data: statuses,
+		},
+	)
 }
 
 func newRoom(name string, roomReg *roomRegister) *Room {

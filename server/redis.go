@@ -26,8 +26,6 @@ type redisManager struct {
 
 func getRedis() *redisManager {
 	if redisDB.redis == nil {
-		fmt.Println("2")
-
 		redisDB = redisManager{
 			redis: redis.NewClient(&redis.Options{
 				Addr:     "localhost:6379",
@@ -54,8 +52,11 @@ func (r *redisManager) hasMessages(key string) bool {
 
 func (r *redisManager) getOffMessages(key string) []interface{} {
 	var ctx = context.Background()
+	var resultData redisContainer
 	messages := []interface{}{}
 	req := r.redis.LRange(ctx, key, 0, -1)
+
+	fmt.Println(req.String())
 	strSlice, _ := req.Result()
 
 	for _, val := range strSlice {
@@ -64,7 +65,6 @@ func (r *redisManager) getOffMessages(key string) []interface{} {
 			Type Kind            `json:"type"`
 			Data json.RawMessage `json:"data"`
 		}
-		var resultData redisContainer
 
 		err := json.Unmarshal(buffMessage, &importRedisContainer)
 		if err != nil {

@@ -1,6 +1,8 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type broadcastHandler interface {
 	exec(sender *Client, payload interface{})
@@ -23,6 +25,7 @@ func (newMsgAlgo *newMsgAlgo) exec(sender *Client, payload interface{}) {
 		Type: "NEW_MESSAGE",
 		Data: userMsg,
 	}
+
 	room, ok := hub.roomRegister.rooms[destination]
 	if ok {
 		room.read <- envelope
@@ -35,6 +38,7 @@ func (newMsgAlgo *newDialogueAlgo) exec(sender *Client, payload interface{}) {
 	newDialog, _ := payload.(*NewPrivateChat)
 	hub := sender.hub
 	destination := newDialog.ChatName
+
 	fmt.Println("destination", destination)
 	hub.roomRegister.addRoom(destination)
 	initiator, receiver := hub.connections[newDialog.InitiatorID], hub.connections[newDialog.ReceiverID]
@@ -70,6 +74,7 @@ func (newMsgAlgo *newGroupChatAlgo) exec(sender *Client, payload interface{}) {
 		Type: "NEW_GROUP_CHAT",
 		Data: payload,
 	}
+
 	hub.roomRegister.addRoom(destination)
 	hub.roomRegister.addClient(destination, sender)
 	sender.messageBuffer <- outEnv
@@ -79,10 +84,12 @@ func (newMsgAlgo *newSubAlgo) exec(sender *Client, payload interface{}) {
 	hub := sender.hub
 	data, _ := payload.(*Subscription)
 	destination := data.ChatName
+
 	chatEnv := OutEnvelope{
 		Type: "JOIN_CHAT",
 		Data: payload,
 	}
+
 	msgEnv := OutEnvelope{
 		Type: "NEW_MESSAGE",
 		Data: UserMessage{
@@ -92,6 +99,7 @@ func (newMsgAlgo *newSubAlgo) exec(sender *Client, payload interface{}) {
 			MessageID: data.msgID,
 		},
 	}
+
 	_, ok := hub.roomRegister.rooms[destination]
 	if !ok {
 		hub.roomRegister.addRoom(destination)

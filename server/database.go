@@ -33,7 +33,7 @@ func (dbm *sqlDBwrap) openAndMigrateDB() error {
 	}
 	dotenv := os.Getenv("DATABASE_CREDS")
 	fmt.Println(dotenv)
-	dataSourceName := fmt.Sprintf("postgres://%s/dbmanager?sslmode=disable", dotenv)
+	dataSourceName := fmt.Sprintf("postgres://%s?sslmode=disable", dotenv)
 
 	dbm.db, err = sql.Open("postgres", dataSourceName)
 	if err != nil {
@@ -91,7 +91,6 @@ func getDB() *sqlDBwrap {
 	if dbManager.db == nil {
 		err := dbManager.openAndMigrateDB()
 		if err != nil {
-			fmt.Println("1")
 			log.Println(err)
 		}
 	}
