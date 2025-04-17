@@ -31,23 +31,25 @@ function ChatLayout(){
 
   /**
    * @param {{name: string, id: number, participation: boolean, type: string}} chatObj
-   * @param {string} input 
+   * @param {{input: string, image: FileImage}} payload 
    */
 
-  function sendMessageHandler(chatObj, input){
+  function sendMessageHandler(chatObj, payload){
     let message = null
 
     if (chatObj.type == 'private' && !chatObj.participation){ 
       let id = searchProfileResults[chatObj.name].id
-      message = makeEnvelope("NEW_PRIVATE_CHAT", [id, input])
+      message = makeEnvelope("NEW_PRIVATE_CHAT", payload, [id])
       changeDialogueParticipation()
     } else if (chatObj.type == 'group' && !chatObj.participation){
-      message = makeEnvelope("JOIN_CHAT", [chatObj.id, chatObj.name, input])
+      message = makeEnvelope("JOIN_CHAT", payload, [chatObj.id, chatObj.name])
     } else {
-      message = makeEnvelope("NEW_MESSAGE", [chatObj.name, input])
+      message = makeEnvelope("NEW_MESSAGE",payload, [chatObj.name])
     }
     writeToSocket(message)
   }
+
+
   function renderSelectedChat(){
     if (selectedChat.type == 'private'){
       return <ChatDialogue onSend={sendMessageHandler}/>
@@ -58,7 +60,7 @@ function ChatLayout(){
   
   const searchHandler = (input) => {
     if (input == "") return setSearchInputStatus(false)
-    writeToSocket(makeEnvelope("SEARCH_QUERY", [input, getUsername()]))
+    writeToSocket(makeEnvelope("SEARCH_QUERY", {input: input}, []))
     setSearchInputStatus(true)
   }
 
