@@ -56,7 +56,7 @@ func (r *redisManager) getOffMessages(key string) []interface{} {
 	messages := []interface{}{}
 	req := r.redis.LRange(ctx, key, 0, -1)
 
-	fmt.Println(req.String())
+	// fmt.Println(req.String())
 	strSlice, _ := req.Result()
 
 	for _, val := range strSlice {

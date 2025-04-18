@@ -107,13 +107,12 @@ func (client *Client) processMessage(p []byte) (*wsMessage, error) {
 	}
 
 	err = json.Unmarshal(p, msg)
-	fmt.Println(string(p))
 
 	if err != nil {
 		log.Fatal(err)
 	}
-	broadcastHandler := defineAlgo(msg)
 
+	broadcastHandler := defineAlgo(msg)
 	msg.Process(client)
 
 	return &wsMessage{
@@ -126,7 +125,6 @@ func (client *Client) processMessage(p []byte) (*wsMessage, error) {
 func (cl *Client) handleOfflineMessages(clientSubs []string) {
 	redisManager := getRedis()
 	data := map[string][]interface{}{}
-	fmt.Println(data)
 	for _, sub := range clientSubs {
 		key := fmt.Sprintf("offline:messages:%s:%d", sub, cl.id)
 		if ok := redisManager.hasMessages(key); ok {

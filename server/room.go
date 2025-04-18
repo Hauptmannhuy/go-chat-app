@@ -42,7 +42,7 @@ func (room *Room) run() {
 		case message := <-room.read:
 			{
 				fmt.Println("============")
-				fmt.Println("Room received message", message.Data)
+				// fmt.Println("Room received message", message.Data)
 				fmt.Println("connected to room peers", room.connections)
 				fmt.Println("room subscribers", room.subscribers)
 				fmt.Println("============")

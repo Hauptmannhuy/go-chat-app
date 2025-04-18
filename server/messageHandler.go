@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"go-chat-app/dbmanager/store"
+	imagehandler "go-chat-app/imageHandler"
 	"log"
 	"strings"
 )
@@ -29,13 +30,13 @@ type JSONenvelope struct {
 }
 
 type UserMessage struct {
-	UserID    int    `json:"user_id"`
-	Username  string `json:"username"`
-	ChatName  string `json:"chat_name"`
-	MessageID int    `json:"message_id"`
-	Body      string `json:"body"`
-	Image     Image  `json:"image"`
-	State     string `json:"state"`
+	UserID    int                 `json:"user_id"`
+	Username  string              `json:"username"`
+	ChatName  string              `json:"chat_name"`
+	MessageID int                 `json:"message_id"`
+	Body      string              `json:"body"`
+	Image     *imagehandler.Image `json:"image"`
+	State     string              `json:"state"`
 }
 
 type Subscription struct {
@@ -162,6 +163,9 @@ func defineAlgo(data interface{}) broadcastHandler {
 func (msg *UserMessage) Process(cl *Client) {
 	msg.UserID = cl.id
 	msg.Username = cl.username
+	if msg.Image.Type != "" {
+		go imagehandler.LocalSave(msg.Image)
+	}
 	msg.requestDB()
 }
 
@@ -242,7 +246,6 @@ func (msg *UserMessage) requestDB() error {
 	messageHandler := getDB().initializeDBhandler("message")
 	messageID, err := messageHandler.CreateMessageHandler(msg.Body, msg.ChatName, msg.UserID)
 	msg.MessageID = messageID
-	fmt.Println(msg)
 	return err
 }
 
